@@ -174,7 +174,7 @@ function prep(ds, parent){
 }
 const kids = (ctx, name) => ctx.b.filter(d => d.n === name);
 function dirText(d){
-  const q = a => (a === '' || /[\s;{}"]/.test(a)) ? '"' + a.replace(/"/g, '\\"') + '"' : a;
+  const q = a => (a === '' || /[\s;{}"]/.test(a)) ? '"' + a.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"' : a;
   return [d.n, ...d.a.map(q)].join(' ') + (d.k ? ' { … }' : ';');
 }
 function parseLoc(d){

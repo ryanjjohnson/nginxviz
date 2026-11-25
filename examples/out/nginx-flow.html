@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- No network access of any kind is permitted by this page. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-0G10V+dOrzc2tiIgUljw4Pu/AdhmzN+YsqXG3XYlDbE='; img-src data:; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'sha256-8g6DBzZ8IzJ5s3lKj/WW/8QWAcoZQF2tfb4IyUSOWtE='; img-src data:; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>Example: edge → app → api</title>
 <style>
@@ -174,7 +174,7 @@ function prep(ds, parent){
 }
 const kids = (ctx, name) => ctx.b.filter(d => d.n === name);
 function dirText(d){
-  const q = a => (a === '' || /[\s;{}"]/.test(a)) ? '"' + a.replace(/"/g, '\\"') + '"' : a;
+  const q = a => (a === '' || /[\s;{}"]/.test(a)) ? '"' + a.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"' : a;
   return [d.n, ...d.a.map(q)].join(' ') + (d.k ? ' { … }' : ';');
 }
 function parseLoc(d){
