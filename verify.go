@@ -296,6 +296,8 @@ func (s *scratch) stubFor(addr string) (int, error) {
 
 func dropDirective(name string) bool {
 	switch name {
+	case "events", "worker_processes", "worker_rlimit_nofile": // verify writes its own
+		return true
 	case "user", "pid", "daemon", "master_process", "error_log", "access_log", "lock_file",
 		"stream", "mail", "proxy_cache", "fastcgi_cache", "uwsgi_cache", "scgi_cache":
 		return true

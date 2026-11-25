@@ -589,6 +589,7 @@ func TestScratchConfigRunsOnlyAllowedDirectivesLocally(t *testing.T) {
 		if strings.HasPrefix(strings.TrimSpace(line), "proxy_set_header Host ") {
 			continue
 		}
+		line = strings.ReplaceAll(line, s.dir, "SCRATCH") // the scratch directory may itself be under /tmp
 		for _, leak := range []string{"evil", "/tmp/", "owned", "syslog", "8.8.8.8", "2001:db8", "0.0.0.0", "/etc/", "/home/", "100000", "perl", "js_", "lua", "dav_", "_store", "resolver", "load_module"} {
 			if strings.Contains(line, leak) {
 				t.Errorf("scratch config still contains %q: %s", leak, line)
