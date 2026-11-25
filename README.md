@@ -1,14 +1,14 @@
 # nginxviz
 
-<p align="center">
-  <img src="docs/demo.gif" width="800" alt="The nginxviz page tracing https://example.com/old-blog/hello-world step by step: a rewrite at the edge server, a proxy_pass to the app server, a second rewrite there, and a proxy_pass on to the api server">
-</p>
-
 [![release](https://github.com/ryanjjohnson/nginxviz/actions/workflows/release.yml/badge.svg)](https://github.com/ryanjjohnson/nginxviz/actions/workflows/release.yml)
 [![security](https://github.com/ryanjjohnson/nginxviz/actions/workflows/security.yml/badge.svg)](https://github.com/ryanjjohnson/nginxviz/actions/workflows/security.yml)
 [![latest release](https://img.shields.io/github/v/release/ryanjjohnson/nginxviz)](https://github.com/ryanjjohnson/nginxviz/releases/latest)
 [![licence: MIT](https://img.shields.io/github/license/ryanjjohnson/nginxviz)](LICENSE)
 ![vibe coded with Claude](https://img.shields.io/badge/vibe%20coded-with%20Claude-d97757)
+
+<p align="center">
+  <img src="docs/demo.gif" width="800" alt="The nginxviz page tracing https://example.com/old-blog/hello-world step by step: a rewrite at the edge server, a proxy_pass to the app server, a second rewrite there, and a proxy_pass on to the api server">
+</p>
 
 Shows what nginx will do with a URL. Give it one or more nginx configurations and it writes:
 
