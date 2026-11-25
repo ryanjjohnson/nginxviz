@@ -8,7 +8,7 @@
 [![security](https://github.com/ryanjjohnson/nginxviz/actions/workflows/security.yml/badge.svg)](https://github.com/ryanjjohnson/nginxviz/actions/workflows/security.yml)
 [![latest release](https://img.shields.io/github/v/release/ryanjjohnson/nginxviz)](https://github.com/ryanjjohnson/nginxviz/releases/latest)
 [![licence: MIT](https://img.shields.io/github/license/ryanjjohnson/nginxviz)](LICENSE)
-[![vibe coded with Claude](https://img.shields.io/badge/vibe%20coded-with%20Claude-d97757)](#the-prompt)
+![vibe coded with Claude](https://img.shields.io/badge/vibe%20coded-with%20Claude-d97757)
 
 Shows what nginx will do with a URL. Give it one or more nginx configurations and it writes:
 
@@ -23,23 +23,6 @@ nginx and the page agree.
 One static binary with no dependencies, written in Go using only the standard library. The page
 loads nothing from anywhere: no scripts, fonts, styles or images, and its
 Content-Security-Policy forbids every network request.
-
-## The Prompt
-
-This program was written by Claude. The request that started it, as typed:
-
-> i want a command line tool, written in Go, that takes nginx configuration and produces an
-> interactive diagram of it (save as html + css + javascript + whatever) that allows me to enter
-> a URL and play it stepwise through the nginx config's rules, show the path through the rule
-> workflow and the details at each step. i should be able to specify multiple servers with
-> separate configs, such as Main RP -> upstream 1 -> upstream 2. also produce a markdown file
-> with a mermaid flow diagram/decision tree. i want as few dependencies as possible. this is
-> going to be used in sensitive environments.
-
-The follow-up question was "how do you know what nginx is going to do?", and the honest answer
-(it didn't, with certainty) is why `-verify` exists. The tests, the hardening described under
-[Security](#security), the release pipeline and this section were later requests in the same
-conversation.
 
 ## What it looks like
 
