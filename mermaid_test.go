@@ -107,7 +107,7 @@ http {
 	got := upstreams(tree)
 	want := map[string][]string{
 		"top":  {"10.0.0.1:80"},
-		"Pool": {"app.internal:8080", "10.0.0.6:8080"},
+		"pool": {"app.internal:8080", "10.0.0.6:8080"}, // names compare without case
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("upstreams = %v, want %v", got, want)
@@ -289,7 +289,7 @@ func TestMermaidWarningsSection(t *testing.T) {
 		t.Error("warnings section present without warnings")
 	}
 	b.Warnings = []string{"a.conf:3: include \"x\" matched no files (skipped)"}
-	if md := Mermaid(b); !strings.Contains(md, "## Warnings\n\n- a.conf:3:") {
+	if md := Mermaid(b); !strings.Contains(md, "## Warnings\n\n- `a.conf:3:") {
 		t.Error("warnings section missing")
 	}
 }

@@ -11,6 +11,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -71,18 +72,23 @@ type shop struct {
 }
 
 type scratch struct {
-	b        *Bundle
-	dir      string
-	hops     []*shop
-	stubs    map[string]int // original backend addr -> stub port
-	closed   int            // a port nothing listens on
-	certFile string
-	keyFile  string
-	tlsCfg   *tls.Config
-	notes    map[string]bool
-	mu       sync.Mutex
-	reqs     []StubReq
-	lns      []net.Listener
+	b         *Bundle
+	dir       string
+	hops      []*shop
+	stubs     map[string]int // original backend addr -> stub port
+	closed    int            // a port nothing listens on
+	certFile  string
+	keyFile   string
+	tlsCfg    *tls.Config
+	roots     *x509.CertPool  // trusts the scratch certificate and nothing else
+	certNames map[string]bool // names the scratch certificate is valid for
+	notes     map[string]bool
+	allow     map[string]bool // extra directive names the user allowed (-verify-allow)
+	dropped   map[string]bool // directive names left out of the scratch configs
+	mu        sync.Mutex
+	reqs      []StubReq
+	lns       []net.Listener
+	newStub   func(addr string) (int, error) // tests replace the real listener
 }
 
 func (s *scratch) note(format string, a ...any) { s.notes[fmt.Sprintf(format, a...)] = true }
@@ -105,11 +111,11 @@ func listenPortOf(d *Directive) (int, bool) {
 		return 0, false
 	}
 	if n, err := strconv.Atoi(a); err == nil {
-		return n, true
+		return n, n >= 1 && n <= 65535
 	}
 	if i := strings.LastIndexByte(a, ':'); i >= 0 {
 		if n, err := strconv.Atoi(a[i+1:]); err == nil {
-			return n, true
+			return n, n >= 1 && n <= 65535
 		}
 	}
 	return 80, true
@@ -126,7 +132,25 @@ func hasArg(d *Directive, v string) bool {
 
 // ---- self-signed certificate for TLS listeners and stubs ----
 
-func (s *scratch) makeCert() error {
+// scratchName is always a name on the scratch certificate.
+const scratchName = "nginxviz-scratch"
+
+var reDNSName = regexp.MustCompile(`^[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?(\.[a-z0-9_]([a-z0-9_-]{0,61}[a-z0-9_])?)*$`)
+
+// certName returns host if the scratch certificate can carry it as a name.
+func certName(host string) (string, bool) {
+	host = strings.ToLower(host)
+	if net.ParseIP(host) != nil {
+		return host, true
+	}
+	return host, len(host) <= 253 && reDNSName.MatchString(host)
+}
+
+// makeCert creates the throwaway certificate used by scratch TLS listeners
+// and stubs. It is valid for the host names of the requests to be replayed
+// (at most maxCertNames of them), so that the client can verify it properly
+// instead of switching certificate checks off.
+func (s *scratch) makeCert(hosts []string) error {
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return err
@@ -135,6 +159,20 @@ func (s *scratch) makeCert() error {
 		SerialNumber: big.NewInt(1), Subject: pkix.Name{CommonName: "nginxviz-scratch"},
 		NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(24 * time.Hour),
 		KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		DNSNames: []string{scratchName},
+	}
+	s.certNames = map[string]bool{scratchName: true}
+	for _, h := range hosts {
+		h, ok := certName(h)
+		if !ok || s.certNames[h] || len(s.certNames) >= maxCertNames {
+			continue
+		}
+		s.certNames[h] = true
+		if ip := net.ParseIP(h); ip != nil {
+			tpl.IPAddresses = append(tpl.IPAddresses, ip)
+		} else {
+			tpl.DNSNames = append(tpl.DNSNames, h)
+		}
 	}
 	der, err := x509.CreateCertificate(rand.Reader, tpl, tpl, &key.PublicKey, key)
 	if err != nil {
@@ -157,7 +195,13 @@ func (s *scratch) makeCert() error {
 	if err != nil {
 		return err
 	}
-	s.tlsCfg = &tls.Config{Certificates: []tls.Certificate{pair}}
+	s.tlsCfg = &tls.Config{Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS12}
+	leaf, err := x509.ParseCertificate(der)
+	if err != nil {
+		return err
+	}
+	s.roots = x509.NewCertPool()
+	s.roots.AddCert(leaf)
 	return nil
 }
 
@@ -190,6 +234,16 @@ func (p *peekConn) Read(b []byte) (int, error) { return p.r.Read(b) }
 func (s *scratch) stubFor(addr string) (int, error) {
 	if p, ok := s.stubs[addr]; ok {
 		return p, nil
+	}
+	if len(s.stubs) >= maxStubs {
+		return 0, fmt.Errorf("more than %d different backend addresses to stub", maxStubs)
+	}
+	if s.newStub != nil {
+		p, err := s.newStub(addr)
+		if err == nil {
+			s.stubs[addr] = p
+		}
+		return p, err
 	}
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -225,7 +279,7 @@ func (s *scratch) stubFor(addr string) (int, error) {
 			}()
 		}
 	}()
-	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := &http.Server{ReadHeaderTimeout: 10 * time.Second, Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		s.mu.Lock()
 		s.reqs = append(s.reqs, StubReq{Addr: addr, Method: r.Method, URI: r.RequestURI, Host: r.Host})
 		s.mu.Unlock()
@@ -248,6 +302,54 @@ func dropDirective(name string) bool {
 	}
 	return strings.HasPrefix(name, "ssl_") || strings.HasPrefix(name, "proxy_ssl_") ||
 		strings.HasSuffix(name, "_temp_path") || strings.HasSuffix(name, "_cache_path")
+}
+
+// verifyAllowed lists the directives that are copied into a scratch config.
+// A scratch config is run by a real nginx, so a config from an untrusted
+// source must not be able to make that nginx do anything but route requests
+// on 127.0.0.1: no loading code (load_module, perl, njs, Lua), no writing
+// files (proxy_store, dav, logs, temp and cache paths), no network use
+// (resolver, syslog), no sizing of memory. Everything not listed here is left
+// out and reported; -verify-allow adds names for one run.
+var verifyAllowed = map[string]bool{}
+
+func init() {
+	for _, n := range strings.Fields(`
+		http server location upstream if limit_except map geo split_clients types charset_map
+		listen server_name root alias index try_files error_page internal return rewrite set break
+		allow deny satisfy auth_basic auth_basic_user_file auth_request auth_request_set
+		real_ip_header set_real_ip_from real_ip_recursive valid_referers
+		proxy_pass proxy_set_header proxy_redirect proxy_http_version proxy_method
+		proxy_pass_request_headers proxy_pass_request_body proxy_intercept_errors
+		proxy_hide_header proxy_pass_header proxy_set_body proxy_cookie_domain proxy_cookie_path
+		proxy_next_upstream proxy_next_upstream_tries proxy_buffering proxy_request_buffering
+		proxy_ignore_headers proxy_connect_timeout proxy_read_timeout proxy_send_timeout
+		fastcgi_pass fastcgi_param fastcgi_index fastcgi_split_path_info fastcgi_intercept_errors
+		uwsgi_pass uwsgi_param scgi_pass scgi_param grpc_pass grpc_set_header memcached_pass
+		least_conn ip_hash hash random keepalive keepalive_requests keepalive_timeout
+		add_header expires default_type charset etag if_modified_since autoindex
+		merge_slashes absolute_redirect port_in_redirect server_name_in_redirect
+		recursive_error_pages underscores_in_headers ignore_invalid_headers
+		client_max_body_size server_tokens sendfile tcp_nopush tcp_nodelay
+		gzip gzip_types gzip_vary gzip_proxied gzip_comp_level gzip_min_length
+		log_not_found log_subrequest rewrite_log uninitialized_variable_warn
+		mirror mirror_request_body stub_status empty_gif http2 disable_symlinks`) {
+		verifyAllowed[n] = true
+	}
+}
+
+// keep reports whether directive name may go into a scratch config.
+func (s *scratch) keep(name string) bool {
+	if verifyAllowed[name] || s.allow[name] {
+		return true
+	}
+	if s.dropped == nil {
+		s.dropped = map[string]bool{}
+	}
+	if len(s.dropped) < 200 {
+		s.dropped[name] = true
+	}
+	return false
 }
 
 // dataBlocks hold key/value data, not directives; they are copied untouched.
@@ -290,6 +392,10 @@ func (s *scratch) target(addr string, defPort int) (string, error) {
 	return "127.0.0.1:" + strconv.Itoa(p), nil
 }
 
+// reBackendHost is what a literal proxy_pass host may look like: a name or
+// IPv4 address, or an IPv6 address in brackets, with an optional port.
+var reBackendHost = regexp.MustCompile(`^([a-z0-9._-]+|\[[0-9a-f:.]+\])(:[0-9]{1,5})?$`)
+
 var passRe = regexp.MustCompile(`^(?:([a-z]+)://)?([^/?]+)(.*)$`)
 
 func (s *scratch) xform(h *shop, ds []*Directive, stack [][]*Directive, ctx string) ([]*Directive, error) {
@@ -315,7 +421,18 @@ func (s *scratch) xform(h *shop, ds []*Directive, stack [][]*Directive, ctx stri
 	emitted := map[int]bool{}
 	injectHost := ""
 	for _, d := range ds {
-		if dropDirective(d.Name) {
+		if strings.Contains(d.Name, "_by_lua") {
+			return nil, fmt.Errorf("%s:%d: %s cannot be reproduced in a scratch config; verify does not support Lua", d.File, d.Line, clean(d.Name))
+		}
+		if dropDirective(d.Name) || !s.keep(d.Name) {
+			continue
+		}
+		// Directives that name an address are always rewritten below; one
+		// that is malformed or misplaced is left out, never copied as written.
+		switch {
+		case d.Name == "listen" && ctx != "server",
+			d.Name == "server" && ctx == "upstream" && (len(d.Args) == 0 || d.IsBlk),
+			strings.HasSuffix(d.Name, "_pass") && (len(d.Args) == 0 || d.IsBlk):
 			continue
 		}
 		c := *d
@@ -348,7 +465,8 @@ func (s *scratch) xform(h *shop, ds []*Directive, stack [][]*Directive, ctx stri
 			c.Args, c.Q = args, nil
 		case d.Name == "proxy_pass" && len(d.Args) > 0:
 			m := passRe.FindStringSubmatch(d.Args[0])
-			if m == nil {
+			if m == nil { // nothing nginx would accept; never pass it through as written
+				c.Args, c.Q = []string{"http://127.0.0.1:" + strconv.Itoa(s.closed)}, nil
 				break
 			}
 			scheme, host, rest := m[1], strings.ToLower(m[2]), m[3]
@@ -369,6 +487,12 @@ func (s *scratch) xform(h *shop, ds []*Directive, stack [][]*Directive, ctx stri
 				}
 				c.Args, c.Q = []string{scheme + "://" + t + uri}, nil
 				injectHost = "localhost"
+				break
+			}
+			if !strings.Contains(host, "$") && !reBackendHost.MatchString(host) {
+				// not a host nginx would accept; never pass it through as written
+				s.note("%s:%d: proxy_pass target is not a plain host[:port]; requests reaching it are not verifiable.", d.File, d.Line)
+				c.Args, c.Q = []string{"http://127.0.0.1:" + strconv.Itoa(s.closed)}, nil
 				break
 			}
 			if strings.Contains(host, "$") {
@@ -397,9 +521,6 @@ func (s *scratch) xform(h *shop, ds []*Directive, stack [][]*Directive, ctx stri
 			s.note("%s backends are not stubbed (nginx answers 502 in the scratch run); only the location choice is verified for requests reaching them.", d.Name)
 		}
 		if d.IsBlk {
-			if strings.HasSuffix(d.Name, "_by_lua_block") {
-				return nil, fmt.Errorf("%s:%d: %s cannot be reproduced in a scratch config; verify does not support Lua blocks", d.File, d.Line, d.Name)
-			}
 			if !dataBlocks[d.Name] {
 				kids, err := s.xform(h, d.Block, append(stack, ds), d.Name)
 				if err != nil {
@@ -483,7 +604,7 @@ func (s *scratch) buildConf(h *shop) (string, error) {
 		if d.Name != "http" {
 			continue
 		}
-		pre := []*Directive{mk("access_log", "off")}
+		pre := []*Directive{mk("access_log", "off"), mk("server_names_hash_bucket_size", "128"), mk("map_hash_bucket_size", "128")}
 		for _, n := range []string{"client_body", "proxy", "fastcgi", "uwsgi", "scgi"} {
 			pre = append(pre, mk(n+"_temp_path", filepath.Join(h.dir, "tmp-"+n)))
 		}
@@ -494,13 +615,60 @@ func (s *scratch) buildConf(h *shop) (string, error) {
 	}
 	pre := []*Directive{mk("daemon", "off"), mk("master_process", "off"),
 		mk("pid", filepath.Join(h.dir, "nginx.pid")), mk("error_log", filepath.Join(h.dir, "error.log"), "debug")}
-	if len(find(top, "events")) == 0 {
-		pre = append(pre, &Directive{Name: "events", IsBlk: true})
-	}
+	pre = append(pre, &Directive{Name: "events", IsBlk: true, Block: []*Directive{mk("worker_connections", "256")}})
 	var sb strings.Builder
 	sb.WriteString("# scratch config generated by nginxviz verify - not for production\n")
 	serialize(&sb, append(pre, top...), 0)
 	return sb.String(), nil
+}
+
+// plan gives every hop a scratch directory and a scratch port (from alloc)
+// for each port its servers listen on.
+func (s *scratch) plan(alloc func() (int, error)) error {
+	for i, hop := range s.b.Hops {
+		h := &shop{hop: hop, ports: map[int]int{}, ssl: map[int]bool{}, ups: upstreams(hop.Tree), dir: filepath.Join(s.dir, fmt.Sprintf("hop%d", i))}
+		if err := os.MkdirAll(h.dir, 0o700); err != nil {
+			return err
+		}
+		add := func(p int, ssl bool) error {
+			if _, ok := h.ports[p]; !ok {
+				if len(h.ports) >= maxListenPorts {
+					return fmt.Errorf("%s: more than %d different listen ports", clean(hop.File), maxListenPorts)
+				}
+				fp, err := alloc()
+				if err != nil {
+					return err
+				}
+				h.ports[p] = fp
+			}
+			h.ssl[p] = h.ssl[p] || ssl
+			return nil
+		}
+		srvs := serverBlocks(hop.Tree)
+		if len(srvs) == 0 {
+			return fmt.Errorf("%s: no server blocks to verify", clean(hop.File))
+		}
+		for _, sv := range srvs {
+			ls := find(sv.Block, "listen")
+			if len(ls) == 0 {
+				if err := add(80, false); err != nil {
+					return err
+				}
+			}
+			for _, l := range ls {
+				if p, ok := listenPortOf(l); ok {
+					if err := add(p, hasArg(l, "ssl")); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		if len(h.ports) == 0 {
+			return fmt.Errorf("%s: no TCP listen directives to verify", clean(hop.File))
+		}
+		s.hops = append(s.hops, h)
+	}
+	return nil
 }
 
 // ---- running ----
@@ -517,7 +685,7 @@ func (h *shop) newLocs() []string {
 	}
 	defer f.Close()
 	f.Seek(h.off, io.SeekStart)
-	data, _ := io.ReadAll(f)
+	data, _ := io.ReadAll(io.LimitReader(f, maxLogBytes))
 	h.off += int64(len(data))
 	type hit struct {
 		pos int
@@ -539,15 +707,33 @@ func (h *shop) newLocs() []string {
 }
 
 func readCases(path string) ([]*VCase, error) {
-	data, err := os.ReadFile(path)
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
+	defer f.Close()
+	data, err := io.ReadAll(io.LimitReader(f, maxCasesBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > maxCasesBytes {
+		return nil, fmt.Errorf("%s is larger than %d MB", path, maxCasesBytes>>20)
+	}
+	return parseCases(data, path)
+}
+
+func parseCases(data []byte, path string) ([]*VCase, error) {
 	var out []*VCase
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || line[0] == '#' {
 			continue
+		}
+		if len(line) > maxCaseLine {
+			return nil, fmt.Errorf("%s: a line is longer than %d bytes", path, maxCaseLine)
+		}
+		if len(out) >= maxCases {
+			return nil, fmt.Errorf("%s: more than %d requests", path, maxCases)
 		}
 		parts := strings.Split(line, " | ")
 		c := &VCase{Method: "GET", Headers: []string{}}
@@ -558,7 +744,7 @@ func readCases(path string) ([]*VCase, error) {
 		case 2:
 			c.Method, c.URL = strings.ToUpper(f[0]), f[1]
 		default:
-			return nil, fmt.Errorf("%s: cannot parse line %q (want: [METHOD] URL [ | Header: value]...)", path, line)
+			return nil, fmt.Errorf("%s: cannot parse line %q (want: [METHOD] URL [ | Header: value]...)", path, clean(line))
 		}
 		if !strings.Contains(c.URL, "://") {
 			c.URL = "http://" + c.URL
@@ -577,7 +763,7 @@ func readCases(path string) ([]*VCase, error) {
 }
 
 // RunVerify executes all cases against scratch nginx instances.
-func RunVerify(b *Bundle, nginxBin, casesPath string, keep bool) (*Verify, error) {
+func RunVerify(b *Bundle, nginxBin, casesPath string, keep bool, allow []string) (*Verify, error) {
 	cases, err := readCases(casesPath)
 	if err != nil {
 		return nil, err
@@ -594,7 +780,10 @@ func RunVerify(b *Bundle, nginxBin, casesPath string, keep bool) (*Verify, error
 	if err != nil {
 		return nil, err
 	}
-	s := &scratch{b: b, dir: dir, stubs: map[string]int{}, notes: map[string]bool{}}
+	s := &scratch{b: b, dir: dir, stubs: map[string]int{}, notes: map[string]bool{}, allow: map[string]bool{}}
+	for _, a := range allow {
+		s.allow[a] = true
+	}
 	defer func() {
 		for _, h := range s.hops {
 			if h.cmd != nil && h.cmd.Process != nil {
@@ -611,52 +800,20 @@ func RunVerify(b *Bundle, nginxBin, casesPath string, keep bool) (*Verify, error
 			os.RemoveAll(dir)
 		}
 	}()
-	if err := s.makeCert(); err != nil {
+	var hosts []string
+	for _, c := range cases {
+		if u, err := url.Parse(c.URL); err == nil {
+			hosts = append(hosts, u.Hostname())
+		}
+	}
+	if err := s.makeCert(hosts); err != nil {
 		return nil, err
 	}
 	if s.closed, err = freePort(); err != nil {
 		return nil, err
 	}
-	// pass 1: allocate listen ports for every hop
-	for i, hop := range b.Hops {
-		h := &shop{hop: hop, ports: map[int]int{}, ssl: map[int]bool{}, ups: upstreams(hop.Tree), dir: filepath.Join(dir, fmt.Sprintf("hop%d", i))}
-		if err := os.MkdirAll(h.dir, 0o755); err != nil {
-			return nil, err
-		}
-		add := func(p int, ssl bool) error {
-			if _, ok := h.ports[p]; !ok {
-				fp, err := freePort()
-				if err != nil {
-					return err
-				}
-				h.ports[p] = fp
-			}
-			h.ssl[p] = h.ssl[p] || ssl
-			return nil
-		}
-		srvs := serverBlocks(hop.Tree)
-		if len(srvs) == 0 {
-			return nil, fmt.Errorf("%s: no server blocks to verify", hop.File)
-		}
-		for _, sv := range srvs {
-			ls := find(sv.Block, "listen")
-			if len(ls) == 0 {
-				if err := add(80, false); err != nil {
-					return nil, err
-				}
-			}
-			for _, l := range ls {
-				if p, ok := listenPortOf(l); ok {
-					if err := add(p, hasArg(l, "ssl")); err != nil {
-						return nil, err
-					}
-				}
-			}
-		}
-		if len(h.ports) == 0 {
-			return nil, fmt.Errorf("%s: no TCP listen directives to verify", hop.File)
-		}
-		s.hops = append(s.hops, h)
+	if err := s.plan(freePort); err != nil {
+		return nil, err
 	}
 	// pass 2: write configs, check them, start nginx
 	for _, h := range s.hops {
@@ -668,9 +825,12 @@ func RunVerify(b *Bundle, nginxBin, casesPath string, keep bool) (*Verify, error
 		if err := os.WriteFile(cf, []byte(conf), 0o600); err != nil {
 			return nil, err
 		}
-		if out, err := exec.Command(bin, "-t", "-c", cf, "-p", h.dir).CombinedOutput(); err != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		out, err := exec.CommandContext(ctx, bin, "-t", "-c", cf, "-p", h.dir).CombinedOutput()
+		cancel()
+		if err != nil {
 			keep = true
-			return nil, fmt.Errorf("nginx rejected the scratch config for hop %q:\n%s", h.hop.Name, out)
+			return nil, fmt.Errorf("nginx rejected the scratch config for hop %q:\n%s%s", h.hop.Name, out, s.droppedNote())
 		}
 		h.cmd = exec.Command(bin, "-c", cf, "-p", h.dir)
 		if err := h.cmd.Start(); err != nil {
@@ -739,10 +899,16 @@ func RunVerify(b *Bundle, nginxBin, casesPath string, keep bool) (*Verify, error
 		if req.Header.Get("User-Agent") == "" {
 			req.Header.Set("User-Agent", "nginxviz-verify")
 		}
+		// The scratch certificate is the only one trusted. The server name
+		// (SNI) is the request's host where the certificate carries it.
+		sni := scratchName
+		if n, ok := certName(u.Hostname()); ok && s.certNames[n] {
+			sni = n
+		}
 		client := &http.Client{
 			Timeout: 15 * time.Second,
 			Transport: &http.Transport{Proxy: nil, DisableKeepAlives: true,
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true, ServerName: u.Hostname()}}, // scratch self-signed cert on 127.0.0.1
+				TLSClientConfig: &tls.Config{RootCAs: s.roots, ServerName: sni, MinVersion: tls.VersionTLS12}},
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		}
 		s.mu.Lock()
@@ -752,7 +918,7 @@ func RunVerify(b *Bundle, nginxBin, casesPath string, keep bool) (*Verify, error
 		if err != nil {
 			c.Error = "no response: " + err.Error()
 		} else {
-			io.Copy(io.Discard, resp.Body)
+			io.Copy(io.Discard, io.LimitReader(resp.Body, maxResponseBytes))
 			resp.Body.Close()
 			c.Status = resp.StatusCode
 			c.Location = s.normLocation(resp.Header.Get("Location"))
@@ -773,11 +939,33 @@ func RunVerify(b *Bundle, nginxBin, casesPath string, keep bool) (*Verify, error
 		s.mu.Unlock()
 	}
 	v.Cases = cases
+	if n := s.droppedNote(); n != "" {
+		s.note("%s", strings.TrimSpace(n))
+	}
 	for n := range s.notes {
 		v.Notes = append(v.Notes, n)
 	}
 	sort.Strings(v.Notes)
 	return v, nil
+}
+
+// droppedNote lists the directives that were left out of the scratch configs.
+func (s *scratch) droppedNote() string {
+	if len(s.dropped) == 0 {
+		return ""
+	}
+	var names []string
+	for n := range s.dropped {
+		names = append(names, clean(n))
+	}
+	sort.Strings(names)
+	more := ""
+	if len(names) > 40 {
+		more = fmt.Sprintf(" and %d more", len(names)-40)
+		names = names[:40]
+	}
+	return "\nNot copied into the scratch configs, because they are not on the list of directives known to be safe to run: " +
+		strings.Join(names, ", ") + more + ". Their effect is not verified. To include one, use -verify-allow NAME."
 }
 
 // normLocation maps scratch ports in a redirect back to the original ports.

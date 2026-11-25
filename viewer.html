@@ -164,7 +164,7 @@ const $ = id => document.getElementById(id);
 
 /* ---------- prepare config trees ---------- */
 let NID = 0;
-const BYID = {};
+const BYID = Object.create(null);
 function prep(ds, parent){
   for (const d of ds){
     d.id = 'n' + (NID++); d.parent = parent; d.a = d.a || []; d.b = d.b || [];
@@ -218,7 +218,7 @@ function prepHop(hop, hi){
     if (!s.listens.length) s.listens = [{port: 80, def: false, ssl: false, d: null}];
     s.names = kids(s, 'server_name').flatMap(d => d.a);
   }
-  hop.upstreams = {}; hop.maps = {};
+  hop.upstreams = Object.create(null); hop.maps = Object.create(null);
   for (const scope of [hop.root, ...https]){
     for (const u of kids(scope, 'upstream')) if (u.a[0]) hop.upstreams[u.a[0].toLowerCase()] = u;
     for (const m of kids(scope, 'map')) if (m.a[1]) hop.maps[m.a[1].replace(/^\$/, '')] = m;
@@ -231,7 +231,7 @@ let FILES = [];
 
 function snap(S){
   return {uri: S.uri, args: S.args, host: S.req.host, method: S.req.method, scheme: S.req.scheme, port: S.req.port,
-          vars: Object.assign({}, S.vars), caps: Object.assign({}, S.caps)};
+          vars: Object.assign(Object.create(null), S.vars), caps: Object.assign(Object.create(null), S.caps)};
 }
 // lines: array of strings, or {note:'..'} or {kv:[[k,v],...], title}
 function step(S, kind, title, lines, d, extra){
@@ -257,7 +257,7 @@ function reTest(S, pat, ci, str){
   if (!re){ S.badRe.add(pat); return null; }
   const m = re.exec(str);
   if (!m) return false;
-  S.caps = {};
+  S.caps = Object.create(null);
   m.forEach((v, i) => { S.caps[i] = v == null ? '' : v; });
   if (m.groups) for (const g in m.groups) S.caps[g] = m.groups[g] == null ? '' : m.groups[g];
   return true;
@@ -788,7 +788,7 @@ function doProxy(S, ctx, d, respond){
   lines.push('Upstream request line: ' + r.method + ' ' + out);
 
   // headers
-  const headers = Object.assign({}, r.headers);
+  const headers = Object.assign(Object.create(null), r.headers);
   delete headers.connection;
   let hostHdr = hostport;
   const psh = inherited(ctx, 'proxy_set_header'), set = [];
@@ -860,7 +860,7 @@ function trace(o){
   rawPQ = rawPQ.replace(/ /g, '%20');
   const qpos = rawPQ.indexOf('?');
   const rawPath = qpos >= 0 ? rawPQ.slice(0, qpos) : rawPQ, rawArgs = qpos >= 0 ? rawPQ.slice(qpos + 1) : '';
-  const headers = {};
+  const headers = Object.create(null);
   for (const line of o.hdrs.split('\n')){ const i = line.indexOf(':'); if (i > 0) headers[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim(); }
   if (!headers.host) headers.host = u.host;
   let req = {scheme: u.protocol.slice(0, -1), port: u.port ? +u.port : (u.protocol === 'https:' ? 443 : 80), method: o.method,
@@ -868,7 +868,7 @@ function trace(o){
     path: rawPath, args: rawArgs, requestUri: rawPQ};
   let hop = DATA.hops[0];
   for (let n = 0; hop; n++){
-    const S = {hop, req, uri: normPath(req.path), args: req.args, vars: {}, caps: {}, server: null, loc: null, ifCtx: null, ctx: null,
+    const S = {hop, req, uri: normPath(req.path), args: req.args, vars: Object.create(null), caps: Object.create(null), server: null, loc: null, ifCtx: null, ctx: null,
       uriChanged: false, internal: false, passChanged: false, brokeRewrite: false, proxyHost: '', unknown: new Set(), badRe: new Set(), mapBusy: new Set()};
     if (n >= 12){ step(S, 'bad', 'Stopped: more than 12 proxy hops (loop between servers?)', [], null, {final: 'bad'}); break; }
     const first = STEPS.length;
@@ -886,7 +886,7 @@ function trace(o){
 }
 
 /* ---------- rendering ---------- */
-const NODE_EL = {};
+const NODE_EL = Object.create(null);
 function renderDir(d){
   const e = el('div', {class: 'dir', title: (d.f || '') + ':' + (d.l || '')}, dirText(d));
   NODE_EL[d.id] = e; return e;
@@ -985,7 +985,7 @@ function show(i){
   for (const id in NODE_EL){ const e = NODE_EL[id]; e.classList.remove('visited', 'active'); }
   document.querySelectorAll('.badge').forEach(b => b.remove());
   HOP_EL.forEach(h => h.classList.remove('onpath', 'active')); LINK_EL.forEach(l => l.classList.remove('onpath'));
-  const marks = {};
+  const marks = Object.create(null);
   for (let j = 0; j <= CUR; j++){
     const x = STEPS[j];
     HOP_EL[x.hop].classList.add('onpath'); LINK_EL[x.hop].classList.add('onpath');

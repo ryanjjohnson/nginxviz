@@ -1,0 +1,93 @@
+name: release
+
+# Every push to main that touches the program publishes a new release: the patch
+# version is bumped from the latest tag. Pushing a v* tag yourself releases exactly
+# that version (use it for minor/major bumps).
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths:
+      - '**.go'
+      - go.mod
+      - build.sh
+      - viewer.html
+      - examples/**
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write     # create the tag and release
+  id-token: write     # prove to Sigstore that this workflow run is the signer
+  attestations: write # store the signed provenance with the repository
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+
+      - name: Vet and test
+        run: |
+          test -z "$(gofmt -l .)"
+          go vet ./...
+          go test -race ./...
+
+      - name: Pick version
+        id: version
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            tag=$GITHUB_REF_NAME
+          else
+            tag=$(git tag --points-at HEAD --list 'v[0-9]*' | head -n1)
+          fi
+          if [ -z "$tag" ]; then
+            last=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n1)
+            last=${last:-v0.0.0}
+            IFS=. read -r major minor patch <<< "${last#v}"
+            tag="v$major.$minor.$((patch + 1))"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag"
+
+      - name: Build every platform
+        run: |
+          VERSION=${{ steps.version.outputs.tag }} sh build.sh release
+          cd dist && sha256sum nginxviz-* > SHA256SUMS.txt
+
+      - name: Smoke test the Linux binary
+        run: |
+          ./dist/nginxviz-linux-amd64 -version
+          ./dist/nginxviz-linux-amd64 -o smoke -title "Example: edge → app → api" \
+            -addr app=10.0.0.5:8080 -addr app=10.0.0.6:8080 -addr api=api.internal:9000 \
+            edge=examples/edge/nginx.conf app=examples/app/nginx.conf api=examples/api/nginx.conf
+          diff smoke/nginx-flow.md examples/out/nginx-flow.md
+          grep -q "script-src 'sha256-" smoke/nginx-flow.html
+
+      # Signs a statement that these exact files were built by this workflow from
+      # this commit. Anyone can check a download with: gh attestation verify
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: dist/nginxviz-*
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+          else
+            gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+          fi

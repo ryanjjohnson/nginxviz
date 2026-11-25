@@ -166,28 +166,25 @@ func TestExampleURLFileParses(t *testing.T) {
 }
 
 // newScratch builds the state RunVerify sets up before rewriting configs,
-// with fixed fake ports instead of real listeners.
-func newScratch(t *testing.T, b *Bundle, ports ...map[int]int) *scratch {
+// with fixed fake ports instead of real listeners: hop i's listen ports map
+// as given in ports[i], and stubs get ports from 50000 up.
+func newScratch(t testing.TB, b *Bundle, ports ...map[int]int) *scratch {
 	t.Helper()
-	s := &scratch{b: b, dir: t.TempDir(), stubs: map[string]int{}, notes: map[string]bool{}, closed: 1,
+	s := &scratch{b: b, dir: t.TempDir(), stubs: map[string]int{}, notes: map[string]bool{}, allow: map[string]bool{}, closed: 1,
 		certFile: "/scratch/cert.pem", keyFile: "/scratch/key.pem"}
-	for i, hop := range b.Hops {
-		h := &shop{hop: hop, ports: ports[i], ssl: map[int]bool{}, ups: upstreams(hop.Tree),
-			dir: filepath.Join(s.dir, "hop"+strconv.Itoa(i))}
-		for _, sv := range serverBlocks(hop.Tree) {
-			for _, l := range find(sv.Block, "listen") {
-				if p, ok := listenPortOf(l); ok && hasArg(l, "ssl") {
-					h.ssl[p] = true
-				}
-			}
-		}
-		s.hops = append(s.hops, h)
+	s.newStub = func(string) (int, error) { return 50000 + len(s.stubs), nil }
+	next := 40000
+	if err := s.plan(func() (int, error) { next++; return next, nil }); err != nil {
+		t.Fatal(err)
 	}
-	t.Cleanup(func() {
-		for _, l := range s.lns {
-			l.Close()
+	for i, h := range s.hops {
+		if i < len(ports) && ports[i] != nil {
+			if len(ports[i]) != len(h.ports) {
+				t.Fatalf("hop %d listens on %d ports, test gives %d", i, len(h.ports), len(ports[i]))
+			}
+			h.ports = ports[i]
 		}
-	})
+	}
 	return s
 }
 
