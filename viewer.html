@@ -1,0 +1,1144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- No network access of any kind is permitted by this page. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>__NGINXVIZ_TITLE__</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#fff; --ink:#1c2330; --muted:#647084; --line:#d5dae2;
+  --accent:#0b6bcb; --accent-bg:#e2efff; --visited:#eaf6ec; --visited-line:#58a068;
+  --warn:#a15c00; --warn-bg:#fff3d6; --bad:#b3261e; --bad-bg:#fde7e5; --ok:#1a7f37; --ok-bg:#e3f6e8;
+  --code:#f0f2f5; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+@media (prefers-color-scheme: dark){:root{
+  --bg:#12151a; --panel:#1b2028; --ink:#e4e8ee; --muted:#93a0b4; --line:#333b48;
+  --accent:#6cb0ff; --accent-bg:#17304d; --visited:#18301f; --visited-line:#4d9a60;
+  --warn:#f0b452; --warn-bg:#3b2d10; --bad:#ff8a80; --bad-bg:#3f1a17; --ok:#6fd08a; --ok-bg:#15301d;
+  --code:#242b36;
+}}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column}
+header{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 14px}
+h1{font-size:15px;margin:0 0 8px;font-weight:650}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,select,textarea,button{font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 9px}
+input[type=text]{font-family:var(--mono);font-size:13px}
+#url{flex:1 1 340px;min-width:200px}
+button{cursor:pointer;background:var(--panel)}
+button:hover:not(:disabled){border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+@media (prefers-color-scheme: dark){button.primary{color:#0b1420}}
+.stepctl{display:flex;gap:4px;align-items:center}
+#pos{color:var(--muted);min-width:74px;text-align:center;font-variant-numeric:tabular-nums}
+details.adv{margin-top:8px}
+details.adv summary{cursor:pointer;color:var(--muted)}
+.advgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-top:8px}
+.advgrid label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+.advgrid textarea,.advgrid input{width:100%;font-family:var(--mono);font-size:12px}
+.advgrid textarea{height:74px;resize:vertical}
+#crumbs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel);min-height:40px}
+.crumb{font-family:var(--mono);font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:var(--bg);cursor:pointer;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crumb.cur{border-color:var(--accent);background:var(--accent-bg)}
+.crumb.final-ok{border-color:var(--ok);background:var(--ok-bg)}
+.crumb.final-bad{border-color:var(--bad);background:var(--bad-bg)}
+.crumb.hopc{font-weight:700}
+.arrow{color:var(--muted)}
+main{flex:1;display:flex;min-height:0}
+#diagram{flex:1;overflow:auto;padding:14px;display:flex;gap:0;align-items:flex-start}
+aside{width:400px;max-width:45vw;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;min-height:0}
+#detail{padding:12px 14px;border-bottom:1px solid var(--line);overflow:auto;flex:0 1 55%}
+#steps{overflow:auto;flex:1;margin:0;padding:6px 0;list-style:none}
+#steps li{padding:5px 14px 5px 10px;cursor:pointer;display:flex;gap:8px;border-left:4px solid transparent}
+#steps li:hover{background:var(--bg)}
+#steps li.cur{background:var(--accent-bg);border-left-color:var(--accent)}
+#steps li.future{opacity:.4}
+#steps li.hophead{font-weight:700;color:var(--muted);cursor:default;text-transform:uppercase;font-size:11px;letter-spacing:.05em;padding-top:10px}
+.num{color:var(--muted);font-variant-numeric:tabular-nums;min-width:22px;text-align:right}
+.k{display:inline-block;width:8px;height:8px;border-radius:50%;margin-top:6px;flex:none;background:var(--muted)}
+.k-match{background:var(--accent)} .k-rewrite{background:#8b5cf6} .k-skip{background:var(--line)}
+.k-proxy{background:#d97706} .k-final{background:var(--ok)} .k-bad{background:var(--bad)} .k-warn{background:var(--warn)}
+#detail h2{font-size:15px;margin:0 0 6px}
+#detail .sub{color:var(--muted);font-size:12px;margin-bottom:8px}
+#detail p{margin:6px 0}
+.src{font-family:var(--mono);font-size:12px;background:var(--code);border-radius:6px;padding:7px 9px;margin:8px 0;white-space:pre-wrap;word-break:break-all}
+.src .where{color:var(--muted);display:block;margin-bottom:2px}
+.note{background:var(--warn-bg);color:var(--warn);border-radius:6px;padding:6px 9px;margin:6px 0;font-size:13px}
+table.kv{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px}
+table.kv td{border-top:1px solid var(--line);padding:3px 6px;vertical-align:top;font-family:var(--mono);word-break:break-all}
+table.kv td:first-child{color:var(--muted);white-space:nowrap;width:1%}
+table.kv tr.chg td{background:var(--accent-bg)}
+h3{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 2px}
+/* diagram */
+.hop{background:var(--panel);border:1px solid var(--line);border-radius:10px;min-width:300px;max-width:460px;flex:none}
+.hop>.hd{padding:8px 12px;border-bottom:1px solid var(--line);font-weight:700;display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.hop>.hd small{font-weight:400;color:var(--muted);font-family:var(--mono);font-size:11px;overflow:hidden;text-overflow:ellipsis}
+.hop>.bd{padding:8px}
+.hop.onpath{border-color:var(--visited-line)}
+.hop.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg)}
+.link{flex:none;width:54px;text-align:center;color:var(--line);font-size:26px;padding-top:6px;user-select:none}
+.link.onpath{color:var(--visited-line)}
+.client{flex:none;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 14px;font-weight:600}
+.blk{border:1px solid var(--line);border-radius:8px;margin:6px 0;background:var(--bg)}
+.blk>summary{cursor:pointer;padding:5px 8px;font-family:var(--mono);font-size:12px;font-weight:600;word-break:break-all;border-radius:8px}
+.blk>.in{padding:0 6px 6px 14px}
+.blk.visited{border-color:var(--visited-line)}
+.blk.visited>summary{background:var(--visited)}
+.blk.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-bg)}
+.blk.active>summary{background:var(--accent-bg)}
+.dir{font-family:var(--mono);font-size:12px;padding:1px 6px;border-radius:4px;word-break:break-all;border-left:3px solid transparent;color:var(--muted)}
+.dir.visited{background:var(--visited);border-left-color:var(--visited-line);color:var(--ink)}
+.dir.active{background:var(--accent-bg);border-left-color:var(--accent);color:var(--ink);font-weight:600}
+.badge{display:inline-block;font:600 10px/1 system-ui,sans-serif;background:var(--visited-line);color:#fff;border-radius:999px;padding:2px 5px;margin-left:5px;vertical-align:middle}
+.active>.badge,.active>summary>.badge{background:var(--accent)}
+.ctxlabel{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:8px 0 2px 2px}
+#warnings{margin:0 14px 10px;font-size:12px}
+.vwrap{max-height:38vh;overflow:auto;margin-top:6px}
+table.vt{border-collapse:collapse;width:100%;font-size:12px}
+table.vt td{border-top:1px solid var(--line);padding:5px 8px;vertical-align:top;word-break:break-word}
+table.vt tr{cursor:pointer}
+table.vt tr:hover{background:var(--bg)}
+.vmark{white-space:nowrap;font-weight:700}
+.vok .vmark,.voktxt{color:var(--ok)} .vbad .vmark,.vbadtxt{color:var(--bad)}
+.vurl{font-family:var(--mono);min-width:260px}
+.vdiff{color:var(--bad);font-weight:600}
+.vnote{color:var(--muted);font-size:12px;margin:2px 0}
+.empty{color:var(--muted);padding:20px}
+@media (max-width:900px){main{flex-direction:column}aside{width:auto;max-width:none;border-left:0;border-top:1px solid var(--line);flex:1}#diagram{flex:1}}
+</style>
+</head>
+<body>
+<header>
+  <h1>__NGINXVIZ_TITLE__</h1>
+  <div class="bar">
+    <select id="method" title="Request method"><option>GET</option><option>POST</option><option>PUT</option><option>DELETE</option><option>PATCH</option><option>HEAD</option><option>OPTIONS</option></select>
+    <input type="text" id="url" spellcheck="false" placeholder="https://example.com/path?query=1" aria-label="URL to trace">
+    <button class="primary" id="go">Trace</button>
+    <span class="stepctl">
+      <button id="first" title="First step (Home)">⏮</button>
+      <button id="prev" title="Previous step (←)">◀</button>
+      <span id="pos">–</span>
+      <button id="next" title="Next step (→)">▶</button>
+      <button id="last" title="Last step (End)">⏭</button>
+      <button id="play" title="Auto-play">Play</button>
+    </span>
+  </div>
+  <details class="adv">
+    <summary>Request details &amp; assumptions (client IP, headers, which files exist on disk)</summary>
+    <div class="advgrid">
+      <div><label for="ip">Client IP ($remote_addr)</label><input type="text" id="ip" value="203.0.113.10" spellcheck="false"></div>
+      <div><label for="hdrs">Extra request headers (one per line, <code>Name: value</code>)</label><textarea id="hdrs" spellcheck="false" placeholder="User-Agent: curl/8.0&#10;Cookie: session=abc"></textarea></div>
+      <div><label for="files">Files/directories that exist, as filesystem paths (one per line; end directories with /). Used by try_files, <code>if (-f …)</code>, index and static serving.</label><textarea id="files" spellcheck="false" placeholder="/var/www/html/index.html&#10;/var/www/html/assets/"></textarea></div>
+    </div>
+  </details>
+</header>
+<div id="crumbs"><span class="empty" style="padding:0">Enter a URL and press Trace to walk it through the configuration.</span></div>
+<main>
+  <div id="diagram"></div>
+  <aside>
+    <div id="detail"><div class="empty">No trace yet.</div></div>
+    <ol id="steps"></ol>
+  </aside>
+</main>
+<script>
+"use strict";
+const DATA = /*__NGINXVIZ_DATA__*/null;
+
+/* ---------- tiny DOM helper (all config text goes through textContent) ---------- */
+function el(tag, attrs, ...kids){
+  const e = document.createElement(tag);
+  if (attrs) for (const k in attrs){
+    if (k === 'class') e.className = attrs[k];
+    else if (k.startsWith('on')) e.addEventListener(k.slice(2), attrs[k]);
+    else e.setAttribute(k, attrs[k]);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c);
+  return e;
+}
+const $ = id => document.getElementById(id);
+
+/* ---------- prepare config trees ---------- */
+let NID = 0;
+const BYID = {};
+function prep(ds, parent){
+  for (const d of ds){
+    d.id = 'n' + (NID++); d.parent = parent; d.a = d.a || []; d.b = d.b || [];
+    BYID[d.id] = d;
+    prep(d.b, d);
+  }
+}
+const kids = (ctx, name) => ctx.b.filter(d => d.n === name);
+function dirText(d){
+  const q = a => (a === '' || /[\s;{}"]/.test(a)) ? '"' + a.replace(/"/g, '\\"') + '"' : a;
+  return [d.n, ...d.a.map(q)].join(' ') + (d.k ? ' { … }' : ';');
+}
+function parseLoc(d){
+  let mod = '', pat = '';
+  if (d.a.length >= 2){ mod = d.a[0]; pat = d.a[1]; }
+  else if (d.a.length === 1){
+    const a = d.a[0];
+    if (a[0] === '@'){ mod = '@'; pat = a; }
+    else if (a.startsWith('^~')){ mod = '^~'; pat = a.slice(2); }
+    else if (a.startsWith('~*')){ mod = '~*'; pat = a.slice(2); }
+    else if (a[0] === '~'){ mod = '~'; pat = a.slice(1); }
+    else if (a[0] === '='){ mod = '='; pat = a.slice(1); }
+    else pat = a;
+  }
+  d.mod = mod; d.pat = pat;
+  d.locs = kids(d, 'location').map(parseLoc);
+  return d;
+}
+function listenPort(d){
+  const a = d.a[0] || '80';
+  if (a.startsWith('unix:')) return null;
+  if (/^\d+$/.test(a)) return +a;
+  const m = /:(\d+)$/.exec(a);
+  return m ? +m[1] : 80;
+}
+function prepHop(hop, hi){
+  hop.index = hi;
+  hop.root = {n: '(main)', a: [], b: hop.tree, id: 'n' + (NID++), parent: null};
+  prep(hop.tree, hop.root);
+  const https = kids(hop.root, 'http');
+  let servers = [];
+  for (const h of https) servers.push(...kids(h, 'server'));
+  servers.push(...kids(hop.root, 'server'));
+  if (!servers.length && kids(hop.root, 'location').length){
+    hop.root.n = 'server'; hop.root.synthetic = true; servers = [hop.root];
+  }
+  hop.servers = servers;
+  for (const s of servers){
+    s.locs = kids(s, 'location').map(parseLoc);
+    s.listens = kids(s, 'listen').map(l => ({port: listenPort(l), def: l.a.includes('default_server') || l.a.includes('default'), ssl: l.a.includes('ssl'), d: l}));
+    if (!s.listens.length) s.listens = [{port: 80, def: false, ssl: false, d: null}];
+    s.names = kids(s, 'server_name').flatMap(d => d.a);
+  }
+  hop.upstreams = {}; hop.maps = {};
+  for (const scope of [hop.root, ...https]){
+    for (const u of kids(scope, 'upstream')) if (u.a[0]) hop.upstreams[u.a[0].toLowerCase()] = u;
+    for (const m of kids(scope, 'map')) if (m.a[1]) hop.maps[m.a[1].replace(/^\$/, '')] = m;
+  }
+}
+
+/* ---------- simulator ---------- */
+let STEPS = [];
+let FILES = [];
+
+function snap(S){
+  return {uri: S.uri, args: S.args, host: S.req.host, method: S.req.method, scheme: S.req.scheme, port: S.req.port,
+          vars: Object.assign({}, S.vars), caps: Object.assign({}, S.caps)};
+}
+// lines: array of strings, or {note:'..'} or {kv:[[k,v],...], title}
+function step(S, kind, title, lines, d, extra){
+  const nodes = [];
+  if (S.server) nodes.push(S.server.id);
+  if (S.loc) nodes.push(S.loc.id);
+  if (d && d.id) { for (let p = d.parent; p && p !== S.loc && p !== S.server && p.parent; p = p.parent) if (p.n === 'if' || p.n === 'location') nodes.push(p.id); nodes.push(d.id); }
+  const st = Object.assign({hop: S.hop.index, kind, title, lines: lines || [], d: d || null, nodes, snap: snap(S)}, extra || {});
+  STEPS.push(st);
+  return st;
+}
+
+function mkRe(pat, ci){
+  let flags = ci ? 'i' : '';
+  let p = pat.replace(/\(\?P</g, '(?<');
+  const m = /^\(\?([a-z]+)\)/.exec(p);
+  if (m){ p = p.slice(m[0].length); if (m[1].includes('i') && !flags) flags = 'i'; if (m[1].includes('s')) flags += 's'; }
+  try { return new RegExp(p, flags); } catch (e){ return null; }
+}
+// returns true/false, or null when the regex could not be translated
+function reTest(S, pat, ci, str){
+  const re = mkRe(pat, ci);
+  if (!re){ S.badRe.add(pat); return null; }
+  const m = re.exec(str);
+  if (!m) return false;
+  S.caps = {};
+  m.forEach((v, i) => { S.caps[i] = v == null ? '' : v; });
+  if (m.groups) for (const g in m.groups) S.caps[g] = m.groups[g] == null ? '' : m.groups[g];
+  return true;
+}
+function capsLine(S){
+  const ks = Object.keys(S.caps).filter(k => k !== '0');
+  return ks.length ? {kv: ks.map(k => ['$' + k, S.caps[k]]), title: 'Captures'} : null;
+}
+
+function inherited(ctx, name){
+  for (let c = ctx; c; c = c.parent){
+    const ds = kids(c, name);
+    if (ds.length) return ds;
+  }
+  return [];
+}
+function rootOf(S, ctx){
+  const r = inherited(ctx, 'root')[0];
+  return r ? expand(S, r.a[0] || '') : 'html';
+}
+function filePath(S, ctx, uri){
+  const loc = S.loc;
+  if (loc){
+    const al = kids(loc, 'alias')[0];
+    if (al){
+      const a = expand(S, al.a[0] || '');
+      if (loc.mod === '~' || loc.mod === '~*') return a;
+      return a + uri.slice(loc.pat.length);
+    }
+  }
+  return rootOf(S, ctx).replace(/\/$/, '') + uri;
+}
+function exists(path, kind){ // kind: 'f','d','e'
+  const p = path.replace(/\/+$/, '');
+  const isFile = FILES.includes(p);
+  const isDir = FILES.some(f => f === p + '/' || f.startsWith(p + '/'));
+  if (kind === 'f') return isFile;
+  if (kind === 'd') return isDir;
+  return isFile || isDir;
+}
+
+function getVar(S, name){
+  if (Object.prototype.hasOwnProperty.call(S.vars, name)) return S.vars[name];
+  if (/^\d+$/.test(name)) return S.caps[name] || '';
+  if (Object.prototype.hasOwnProperty.call(S.caps, name)) return S.caps[name];
+  const r = S.req;
+  switch (name){
+    case 'uri': case 'document_uri': return S.uri;
+    case 'args': case 'query_string': return S.args;
+    case 'is_args': return S.args ? '?' : '';
+    case 'request_uri': return r.requestUri;
+    case 'host': return r.host;
+    case 'hostname': return S.hop.name;
+    case 'scheme': return r.scheme;
+    case 'https': return r.scheme === 'https' ? 'on' : '';
+    case 'request_method': return r.method;
+    case 'remote_addr': case 'realip_remote_addr': return r.remoteAddr;
+    case 'server_port': return String(r.port);
+    case 'server_name': return S.server && S.server.names[0] || '';
+    case 'server_protocol': return 'HTTP/1.1';
+    case 'request': return r.method + ' ' + r.requestUri + ' HTTP/1.1';
+    case 'proxy_add_x_forwarded_for': return r.headers['x-forwarded-for'] ? r.headers['x-forwarded-for'] + ', ' + r.remoteAddr : r.remoteAddr;
+    case 'proxy_host': return S.proxyHost || '';
+    case 'document_root': case 'realpath_root': return rootOf(S, S.ctx || S.loc || S.server);
+    case 'request_filename': return filePath(S, S.ctx || S.loc || S.server, S.uri);
+    case 'content_type': return r.headers['content-type'] || '';
+    case 'content_length': return r.headers['content-length'] || '';
+  }
+  if (name.startsWith('arg_')){
+    for (const kv of S.args.split('&')){ const i = kv.indexOf('='); if ((i < 0 ? kv : kv.slice(0, i)) === name.slice(4)) return i < 0 ? '' : kv.slice(i + 1); }
+    return '';
+  }
+  if (name.startsWith('http_')) return r.headers[name.slice(5).replace(/_/g, '-')] || '';
+  if (name.startsWith('cookie_')){
+    for (const c of (r.headers.cookie || '').split(/;\s*/)){ const i = c.indexOf('='); if (i > 0 && c.slice(0, i) === name.slice(7)) return c.slice(i + 1); }
+    return '';
+  }
+  const map = S.hop.maps[name];
+  if (map && !S.mapBusy.has(name)){
+    S.mapBusy.add(name);
+    try { return evalMap(S, map); } finally { S.mapBusy.delete(name); }
+  }
+  S.unknown.add(name);
+  return '';
+}
+function evalMap(S, m){
+  const src = expand(S, m.a[0]);
+  let def = '', hit = null;
+  const saved = S.caps;
+  for (const e of m.b){
+    const key = e.n, val = e.a[0] == null ? '' : e.a[0];
+    if (key === 'default'){ def = val; continue; }
+    if (key === 'hostnames' || key === 'volatile') continue;
+    if (hit !== null) continue;
+    if (key[0] === '~'){
+      const ci = key[1] === '*';
+      if (reTest(S, key.slice(ci ? 2 : 1), ci, src)) hit = val;
+    } else if ((key[0] === '\\' ? key.slice(1) : key).toLowerCase() === src.toLowerCase()) hit = val;
+  }
+  const out = expand(S, hit !== null ? hit : def);
+  S.caps = saved;
+  return out;
+}
+function expand(S, str){
+  return String(str).replace(/\$\{(\w+)\}|\$(\w+)/g, (_, a, b) => getVar(S, a || b));
+}
+
+function ipToInt(ip){
+  const p = ip.split('.'); if (p.length !== 4) return null;
+  let n = 0; for (const x of p){ if (!/^\d+$/.test(x) || +x > 255) return null; n = n * 256 + (+x); }
+  return n;
+}
+function ipMatch(rule, ip){
+  if (rule === 'all') return true;
+  if (rule === ip) return true;
+  const m = /^([\d.]+)\/(\d+)$/.exec(rule), a = ipToInt(ip);
+  if (!m || a == null) return false;
+  const b = ipToInt(m[1]), bits = +m[2];
+  if (b == null) return false;
+  if (bits === 0) return true;
+  const div = Math.pow(2, 32 - bits);
+  return Math.floor(a / div) === Math.floor(b / div);
+}
+
+function evalIf(S, d){
+  let s = d.a.join(' ').trim();
+  if (s[0] === '(') s = s.slice(1);
+  if (s.endsWith(')')) s = s.slice(0, -1);
+  s = s.trim();
+  let m;
+  if ((m = /^(!?)-([fdex])\s+(.+)$/.exec(s))){
+    const path = expand(S, m[3]);
+    const ex = exists(path, m[2] === 'x' ? 'f' : m[2]);
+    return {val: m[1] ? !ex : ex, why: '"' + path + '" ' + (ex ? 'exists' : 'does not exist') + ' according to the "files that exist" list.'};
+  }
+  if ((m = /^(\S+)\s+(=|!=|~\*|~|!~\*|!~)\s*(.*)$/.exec(s))){
+    const left = expand(S, m[1]), op = m[2];
+    if (op === '=' || op === '!='){
+      const right = expand(S, m[3]);
+      const eq = left === right;
+      return {val: op === '=' ? eq : !eq, why: m[1] + ' is "' + left + '", compared with "' + right + '".'};
+    }
+    const neg = op[0] === '!', ci = op.endsWith('*');
+    const r = reTest(S, m[3], ci, left);
+    if (r === null) return {val: false, why: 'The regex could not be translated to JavaScript; treated as not matching.', bad: true};
+    return {val: neg ? !r : r, why: m[1] + ' is "' + left + '", which ' + (r ? 'matches' : 'does not match') + ' the regex' + (ci ? ' (case-insensitive)' : '') + '.'};
+  }
+  const v = expand(S, s);
+  return {val: v !== '' && v !== '0', why: s + ' is "' + v + '" (' + ((v !== '' && v !== '0') ? 'non-empty, true' : 'empty or "0", false') + ').'};
+}
+
+/* rewrite-module directives of one block, in order.
+   returns {t:'continue'|'break'|'last'|'return', code, body} */
+function runRewrite(S, ctx){
+  for (const d of ctx.b){
+    if (d.n === 'set'){
+      const name = (d.a[0] || '').replace(/^\$/, ''), val = expand(S, d.a[1] || '');
+      S.vars[name] = val;
+      step(S, 'rewrite', 'set $' + name, ['Variable $' + name + ' is now "' + val + '".'], d);
+    } else if (d.n === 'return'){
+      let code = 302, body = '';
+      if (/^\d{3}$/.test(d.a[0] || '')){ code = +d.a[0]; body = expand(S, d.a[1] || ''); }
+      else body = expand(S, d.a[0] || '');
+      return {t: 'return', code, body, d};
+    } else if (d.n === 'break'){
+      step(S, 'rewrite', 'break', ['Stops processing rewrite-module directives in this block. The request continues with the current location\'s content handling.'], d);
+      return {t: 'break'};
+    } else if (d.n === 'rewrite'){
+      const flag = d.a[2] || '';
+      const r = reTest(S, d.a[0] || '', false, S.uri);
+      if (r === null){ step(S, 'warn', 'rewrite: regex not translatable', [{note: 'This PCRE pattern could not be converted to a JavaScript regex, so it is treated as not matching. Verify this rule by hand.'}], d); continue; }
+      if (!r){ step(S, 'skip', 'rewrite does not match', ['URI "' + S.uri + '" does not match ' + d.a[0] + ' — rule skipped.'], d); continue; }
+      const raw = d.a[1] || '', repl = expand(S, raw), old = S.uri + (S.args ? '?' + S.args : '');
+      if (/^(https?:\/\/|\$scheme)/.test(raw) || flag === 'redirect' || flag === 'permanent'){
+        let url = repl;
+        if (!raw.endsWith('?') && !raw.includes('?') && S.args) url += '?' + S.args;
+        if (url.endsWith('?')) url = url.slice(0, -1);
+        step(S, 'rewrite', 'rewrite matches → external redirect', ['URI "' + S.uri + '" matches ' + d.a[0] + '.', capsLine(S)], d);
+        return {t: 'return', code: flag === 'permanent' ? 301 : 302, body: url, d};
+      }
+      const qi = repl.indexOf('?');
+      if (qi >= 0){
+        const na = repl.slice(qi + 1);
+        S.args = raw.endsWith('?') ? na : [na, S.args].filter(Boolean).join('&');
+        S.uri = repl.slice(0, qi);
+      } else S.uri = repl;
+      S.uriChanged = true; S.passChanged = true;
+      const now = S.uri + (S.args ? '?' + S.args : '');
+      const fl = flag === 'last' ? 'Flag "last": stop rewriting here and search for a location matching the new URI.'
+               : flag === 'break' ? 'Flag "break": stop rewriting and stay in the current block; no new location search.'
+               : 'No flag: continue with the following rewrite directives; when they are done, a new location search runs for the changed URI.';
+      step(S, 'rewrite', 'rewrite matches: ' + old + ' → ' + now, ['URI matched ' + d.a[0] + '.', capsLine(S), fl], d);
+      if (flag === 'last') return {t: 'last'};
+      if (flag === 'break'){ S.brokeRewrite = true; return {t: 'break'}; }
+    } else if (d.n === 'if'){
+      const r = evalIf(S, d);
+      if (!r.val){ step(S, r.bad ? 'warn' : 'skip', 'if → false', [r.why, 'The block is skipped.'], d); continue; }
+      step(S, 'match', 'if → true', [r.why, capsLine(S), 'The directives inside this if block apply.'], d);
+      if (ctx.n !== 'server') S.ifCtx = d;
+      const sub = runRewrite(S, d);
+      if (sub.t !== 'continue') return sub;
+    }
+  }
+  return {t: 'continue'};
+}
+
+function locName(l){ return 'location ' + (l.mod && l.mod !== '@' ? l.mod + ' ' : '') + l.pat; }
+
+/* nginx location search. returns {loc, final, log[]} or null */
+function findLoc(S, locs, log){
+  const uri = S.uri;
+  for (const l of locs) if (l.mod === '=' && l.pat === uri){
+    log.push('Exact match: ' + locName(l) + ' — search stops immediately.');
+    return {loc: l, final: true};
+  }
+  let best = null;
+  for (const l of locs) if ((l.mod === '' || l.mod === '^~') && uri.startsWith(l.pat) && (!best || l.pat.length > best.pat.length)) best = l;
+  let result = null;
+  if (best){
+    log.push('Longest matching prefix: ' + locName(best) + '.');
+    result = best;
+    if (best.locs.length){
+      log.push('Checking locations nested inside ' + locName(best) + ' …');
+      const r = findLoc(S, best.locs, log);
+      if (r){ result = r.loc; if (r.final) return r; }
+    }
+  } else log.push('No prefix location matches.');
+  if (best && best.mod === '^~'){
+    log.push('That prefix uses ^~, so regex locations are not checked.');
+    return {loc: result, final: false};
+  }
+  for (const l of locs){
+    if (l.mod !== '~' && l.mod !== '~*') continue;
+    const r = reTest(S, l.pat, l.mod === '~*', uri);
+    if (r === null){ log.push('⚠ Regex ' + locName(l) + ' could not be translated to JavaScript; treated as not matching.'); continue; }
+    if (!r){ log.push('Regex ' + locName(l) + ' — no match.'); continue; }
+    log.push('Regex ' + locName(l) + ' — MATCH. First matching regex wins over the prefix match.');
+    result = l;
+    if (l.locs.length){ const n = findLoc(S, l.locs, log); if (n) result = n.loc; }
+    return {loc: result, final: true};
+  }
+  if (result && locs.some(l => l.mod === '~' || l.mod === '~*')) log.push('No regex matched, so the prefix match is used.');
+  return result ? {loc: result, final: false} : null;
+}
+function findNamed(server, name){
+  let hit = null;
+  (function walk(ls){ for (const l of ls){ if (l.mod === '@' && l.pat === name) hit = hit || l; walk(l.locs); } })(server.locs);
+  return hit;
+}
+
+const REASONS = {200:'OK',201:'Created',204:'No Content',301:'Moved Permanently',302:'Found',303:'See Other',307:'Temporary Redirect',308:'Permanent Redirect',400:'Bad Request',401:'Unauthorized',403:'Forbidden',404:'Not Found',405:'Not Allowed',410:'Gone',418:"I'm a teapot",429:'Too Many Requests',444:'(connection closed without response)',500:'Internal Server Error',502:'Bad Gateway',503:'Service Unavailable',504:'Gateway Timeout'};
+
+function selectServer(S){
+  const r = S.req, hop = S.hop, log = [];
+  if (!hop.servers.length){ step(S, 'bad', 'No server blocks found', [{note: 'This configuration contains no server { } blocks (and no bare location blocks), so there is nothing to trace.'}]); return false; }
+  let cands = hop.servers.filter(s => s.listens.some(l => l.port === r.port));
+  if (!cands.length){
+    log.push({note: 'No server block listens on port ' + r.port + '. In reality the connection would be refused; for analysis, all server blocks are considered.'});
+    cands = hop.servers;
+  } else log.push(cands.length + ' server block(s) listen on port ' + r.port + '.');
+  const host = r.host;
+  let pick = null, why = '';
+  for (const s of cands) if (s.names.some(n => n.toLowerCase() === host || (n[0] === '.' && n.slice(1).toLowerCase() === host))){ pick = s; why = 'exact server_name match for "' + host + '"'; break; }
+  if (!pick){
+    let bl = -1;
+    for (const s of cands) for (let n of s.names){
+      n = n.toLowerCase();
+      const suf = n.startsWith('*.') ? n.slice(1) : n[0] === '.' ? n : null;
+      if (suf && host.endsWith(suf) && suf.length > bl){ pick = s; bl = suf.length; why = 'longest leading-wildcard server_name "' + n + '"'; }
+    }
+  }
+  if (!pick){
+    let bl = -1;
+    for (const s of cands) for (let n of s.names){
+      n = n.toLowerCase();
+      if (n.endsWith('.*') && host.startsWith(n.slice(0, -1)) && n.length > bl){ pick = s; bl = n.length; why = 'longest trailing-wildcard server_name "' + n + '"'; }
+    }
+  }
+  if (!pick){
+    outer: for (const s of cands) for (const n of s.names){
+      if (n[0] !== '~') continue;
+      const ci = n[1] === '*';
+      if (reTest(S, n.slice(ci ? 2 : 1), ci, host)){ pick = s; why = 'first matching regex server_name "' + n + '"'; break outer; }
+    }
+  }
+  if (!pick){
+    pick = cands.find(s => s.listens.some(l => l.def && (l.port === r.port || cands === hop.servers)));
+    if (pick) why = 'no server_name matched "' + host + '"; this is the default_server';
+    else { pick = cands[0]; why = 'no server_name matched "' + host + '" and there is no default_server; the first server block for the port is the implicit default'; }
+  }
+  S.server = pick;
+  log.push('Selected because: ' + why + '.');
+  step(S, 'match', 'Server selected: ' + (pick.names.join(' ') || '(no server_name)'), log, kids(pick, 'server_name')[0] || pick);
+  return true;
+}
+
+/* Runs one request through one hop. Returns {next:{hop,req}} to continue in another hop, or null. */
+function processHop(S){
+  const r = S.req;
+  step(S, 'info', 'Request arrives at ' + S.hop.name, [
+    r.method + ' ' + r.requestUri + ' HTTP/1.1',
+    {kv: [['Host', r.headers.host || ''], ['port', String(r.port)], ['scheme', r.scheme], ['client', r.remoteAddr], ...Object.entries(r.headers).filter(e => e[0] !== 'host')], title: 'Request'}]);
+  if (!selectServer(S)) return null;
+
+  let errorPageDone = false;
+  // respond: terminal response, unless an error_page turns it into an internal redirect.
+  const respond = (code, lines, d, bodyOrUrl) => {
+    const ctx = S.ifCtx || S.loc || S.server;
+    if (!errorPageDone && code >= 300){
+      for (const ep of inherited(ctx, 'error_page')){
+        const a = ep.a.slice(), target = a.pop();
+        let override = null;
+        if (a.length && a[a.length - 1][0] === '=') override = a.pop();
+        if (!a.includes(String(code))) continue;
+        step(S, 'bad', 'Status ' + code + ' ' + (REASONS[code] || ''), lines, d);
+        errorPageDone = true;
+        const t = expand(S, target);
+        const l2 = ['error_page handles status ' + code + '.' + (override ? ' Response code override: ' + override + '.' : '')];
+        if (/^https?:\/\//.test(t)){
+          step(S, 'final', 'Response: 302 redirect to ' + t, l2, ep, {final: 'ok', out: {t: 'status', code: 302, location: t}});
+          return null;
+        }
+        if (t[0] === '@'){ step(S, 'rewrite', 'error_page → named location ' + t, l2, ep); return {mode: 'named', name: t}; }
+        const qi = t.indexOf('?');
+        S.uri = qi >= 0 ? t.slice(0, qi) : t; if (qi >= 0) S.args = t.slice(qi + 1);
+        S.uriChanged = true; S.internal = true; r.method = r.method === 'HEAD' ? 'HEAD' : 'GET';
+        step(S, 'rewrite', 'error_page → internal redirect to ' + t, [...l2, 'The request method becomes GET and a new location search runs for this URI.'], ep);
+        return {mode: 'search'};
+      }
+    }
+    const isRedir = code >= 300 && code < 400;
+    const l = (lines || []).slice();
+    if (bodyOrUrl) l.push(isRedir ? 'Location: ' + bodyOrUrl : 'Body: ' + bodyOrUrl);
+    step(S, 'final', 'Response: ' + code + ' ' + (REASONS[code] || '') + (isRedir && bodyOrUrl ? ' → ' + bodyOrUrl : ''), l, d,
+         {final: code < 400 && code !== 444 ? 'ok' : 'bad', out: {t: 'status', code, location: isRedir && bodyOrUrl ? bodyOrUrl : null}});
+    return null;
+  };
+
+  // server-level rewrite phase
+  S.loc = null; S.ctx = S.server;
+  const sr = runRewrite(S, S.server);
+  let mode = {mode: 'search'};
+  if (sr.t === 'return'){
+    mode = respond(sr.code, ['Returned by a server-level directive, before any location is chosen.'], sr.d, sr.body);
+    if (!mode) return null;
+  }
+
+  for (let cycle = 0; ; cycle++){
+    if (cycle >= 10){
+      step(S, 'bad', 'Response: 500 (rewrite or internal redirection cycle)', [{note: 'nginx aborts after 10 internal redirects / location re-searches.'}], null, {final: 'bad', out: {t: 'status', code: 500}});
+      return null;
+    }
+    S.ifCtx = null; S.passChanged = false; S.brokeRewrite = false;
+    if (mode.mode === 'named'){
+      const nl = findNamed(S.server, mode.name);
+      if (!nl){ step(S, 'bad', 'Response: 500 (named location ' + mode.name + ' not found)', [], null, {final: 'bad', out: {t: 'status', code: 500}}); return null; }
+      S.loc = nl;
+      step(S, 'match', 'Enter named location ' + mode.name, ['Named locations are only reachable by internal redirects (try_files, error_page). The URI stays "' + S.uri + '".'], nl, {locEvt: nl.pat});
+    } else {
+      S.loc = null;
+      const log = ['Searching locations for URI "' + S.uri + '".'];
+      const savedCaps = S.caps;
+      const f = findLoc(S, S.server.locs, log);
+      if (!f){
+        S.caps = savedCaps;
+        step(S, 'warn', 'No location matches "' + S.uri + '"', [...log, 'The request is handled with the server-level configuration.'], S.server, {locEvt: ''});
+      } else {
+        S.loc = f.loc;
+        step(S, 'match', 'Location matched: ' + locName(f.loc), [...log, capsLine(S)], f.loc, {locEvt: (f.loc.mod === '=' ? '=' : '') + f.loc.pat});
+      }
+    }
+    const loc = S.loc;
+    S.ctx = loc || S.server;
+
+    if (loc && kids(loc, 'internal').length && !S.internal){
+      mode = respond(404, ['This location is marked "internal" and the request came directly from a client.'], kids(loc, 'internal')[0]);
+      if (!mode) return null; continue;
+    }
+
+    // location-level rewrite phase
+    if (loc){
+      const lr = runRewrite(S, loc);
+      if (lr.t === 'return'){ mode = respond(lr.code, [], lr.d, lr.body); if (!mode) return null; continue; }
+      if (lr.t === 'last' || (lr.t === 'continue' && S.passChanged)){
+        S.internal = true; mode = {mode: 'search'};
+        step(S, 'rewrite', 'URI changed → new location search', ['The URI is now "' + S.uri + '"; nginx restarts location matching.'], null);
+        continue;
+      }
+    }
+    const ctx = S.ifCtx || loc || S.server;
+    S.ctx = ctx;
+
+    // access phase
+    const acl = [...inherited(ctx, 'allow'), ...inherited(ctx, 'deny')].sort((a, b) => a.l - b.l);
+    const aclScope = (inherited(ctx, 'allow')[0] || inherited(ctx, 'deny')[0] || {}).parent;
+    let denied = null;
+    for (const d of acl.filter(d => d.parent === aclScope)){
+      if (ipMatch(d.a[0] || '', r.remoteAddr)){
+        if (d.n === 'deny') denied = d;
+        else step(S, 'info', 'Access allowed by: allow ' + d.a[0], ['Client ' + r.remoteAddr + ' matches this rule; first matching allow/deny rule wins.'], d);
+        break;
+      }
+    }
+    if (denied){ mode = respond(403, ['Client ' + r.remoteAddr + ' matches deny ' + denied.a[0] + ' (first matching allow/deny rule wins).'], denied); if (!mode) return null; continue; }
+    for (const name of ['limit_req', 'limit_conn', 'auth_basic', 'auth_request', 'auth_jwt', 'satisfy']){
+      const d = inherited(ctx, name)[0];
+      if (!d || d.a[0] === 'off') continue;
+      const txt = {
+        auth_basic: 'HTTP Basic authentication is required here. Without valid credentials nginx answers 401. The trace assumes authentication succeeds.',
+        auth_request: 'nginx makes a subrequest to ' + d.a[0] + '; a 2xx answer allows the request, 401/403 denies it. The trace assumes it succeeds.',
+        auth_jwt: 'A valid JWT is required. The trace assumes it is present.',
+        limit_req: 'Request rate limiting applies. The trace assumes the limit is not exceeded.',
+        limit_conn: 'Connection limiting applies. The trace assumes the limit is not exceeded.',
+        satisfy: 'Controls whether all or any of the access checks must pass.'}[name];
+      step(S, 'info', 'Access check: ' + name, [txt], d);
+    }
+
+    // try_files (not inherited)
+    const tf = loc ? kids(loc, 'try_files')[0] : kids(S.server, 'try_files')[0];
+    if (tf && !S.ifCtx && tf.a.length >= 2){
+      const log = [], last = tf.a[tf.a.length - 1];
+      let found = null;
+      for (const a of tf.a.slice(0, -1)){
+        const v = expand(S, a), isDir = v.endsWith('/');
+        const p = filePath(S, ctx, v);
+        const ok = exists(p, isDir ? 'd' : 'f');
+        log.push((ok ? '✔ ' : '✘ ') + a + ' → ' + p + (ok ? ' exists' : ' does not exist'));
+        if (ok){ found = v; break; }
+      }
+      if (!FILES.length) log.push({note: 'The "files that exist" list is empty, so every file check fails. Add paths under "Request details & assumptions" to model the disk.'});
+      if (found !== null){
+        S.uri = found.replace(/(.)\/$/, '$1');
+        step(S, 'match', 'try_files: found ' + found, [...log, 'Processing continues in this location with URI "' + S.uri + '".'], tf);
+      } else if (last[0] === '='){
+        step(S, 'skip', 'try_files: nothing found', log, tf);
+        mode = respond(+last.slice(1), ['Fallback of try_files is the status code ' + last + '.'], tf);
+        if (!mode) return null; continue;
+      } else if (last[0] === '@'){
+        step(S, 'rewrite', 'try_files: fallback to ' + last, log, tf);
+        S.internal = true; mode = {mode: 'named', name: last}; continue;
+      } else {
+        const t = expand(S, last), qi = t.indexOf('?');
+        S.uri = qi >= 0 ? t.slice(0, qi) : t; if (qi >= 0) S.args = t.slice(qi + 1);
+        S.uriChanged = true; S.internal = true;
+        step(S, 'rewrite', 'try_files: fallback → internal redirect to ' + t, [...log, 'None of the candidates exist; the last parameter is an internal redirect, so location matching starts again.'], tf);
+        mode = {mode: 'search'}; continue;
+      }
+    }
+
+    // content handler
+    const handler = name => kids(ctx, name)[0] || (loc && ctx !== loc ? kids(loc, name)[0] : null);
+    const pp = handler('proxy_pass') || handler('grpc_pass');
+    if (pp) return doProxy(S, ctx, pp, respond);
+    let other = null;
+    for (const n of ['fastcgi_pass', 'uwsgi_pass', 'scgi_pass', 'memcached_pass', 'empty_gif', 'stub_status']){ other = handler(n); if (other) break; }
+    if (other){
+      const params = inherited(ctx, other.n.replace('_pass', '_param')).map(d => [d.a[0], expand(S, d.a[1] || '')]);
+      step(S, 'final', 'Handled by ' + other.n + (other.a[0] ? ' → ' + expand(S, other.a[0]) : ''),
+        ['The request leaves nginx here and is handled by this backend/module. Tracing ends.', params.length ? {kv: params, title: 'Parameters passed'} : null], other, {final: 'ok', out: {t: 'handler'}});
+      return null;
+    }
+
+    // static file
+    const path = filePath(S, ctx, S.uri);
+    const src = (loc && kids(loc, 'alias')[0]) || inherited(ctx, 'root')[0] || null;
+    if (S.uri.endsWith('/')){
+      const idx = inherited(ctx, 'index')[0];
+      const names = idx ? idx.a : ['index.html'];
+      const hit = names.map(n => expand(S, n)).find(n => exists(path + n, 'f'));
+      if (hit){
+        S.uri += hit; S.uriChanged = true; S.internal = true;
+        step(S, 'rewrite', 'index: internal redirect to ' + S.uri, ['The URI ends with "/", and ' + path + hit + ' exists. nginx internally redirects to it and re-runs location matching.'], idx || src);
+        mode = {mode: 'search'}; continue;
+      }
+      const ai = inherited(ctx, 'autoindex')[0];
+      if (ai && ai.a[0] === 'on'){ step(S, 'final', 'Response: 200 (directory listing)', ['autoindex is on for ' + path], ai, {final: 'ok', out: {t: 'status', code: 200}}); return null; }
+      if (!FILES.length){
+        step(S, 'final', 'Static directory request: ' + path, ['The URI ends with "/". nginx looks for an index file (' + names.join(', ') + ') in ' + path + '.',
+          'If one exists it is served (via an internal redirect to it); otherwise the response is 403 Forbidden.',
+          {note: 'The "files that exist" list is empty, so the outcome depends on the disk. Add files to get a definite answer.'}], idx || src, {final: 'ok', out: {t: 'file'}});
+        return null;
+      }
+      mode = respond(403, ['The URI ends with "/", none of the index files (' + names.join(', ') + ') exist in ' + path + ', and autoindex is off.'], idx || src);
+      if (!mode) return null; continue;
+    }
+    if (exists(path, 'f')){ step(S, 'final', 'Response: 200 — static file ' + path, ['The file exists and is served.'], src, {final: 'ok', out: {t: 'status', code: 200}}); return null; }
+    if (!FILES.length){
+      step(S, 'final', 'Static file: ' + path, ['No proxy/handler directive applies, so nginx serves a file from disk.', 'Response is 200 if this file exists, otherwise 404.',
+        src ? null : {note: 'No root directive is set; nginx uses its compiled-in default ("html" under the prefix).'},
+        {note: 'The "files that exist" list is empty, so the outcome depends on the disk. Add files to get a definite answer.'}], src, {final: 'ok', out: {t: 'file'}});
+      return null;
+    }
+    mode = respond(404, [path + ' is not in the "files that exist" list.'], src);
+    if (!mode) return null;
+  }
+}
+
+function doProxy(S, ctx, d, respond){
+  const loc = S.loc, r = S.req, raw = d.a[0] || '', hasVars = raw.includes('$');
+  const lines = [], grpc = d.n === 'grpc_pass';
+  // $proxy_host must be known before expanding headers
+  let target = expand(S, raw);
+  if (!/^[a-z]+:\/\//.test(target)) target = (grpc ? 'grpc://' : 'http://') + target;
+  const m = /^([a-z]+):\/\/([^\/?]+)([\/?].*)?$/.exec(target);
+  if (!m){ step(S, 'bad', 'proxy_pass target could not be parsed: ' + target, [], d, {final: 'bad'}); return null; }
+  const scheme = m[1], hostport = m[2].toLowerCase(), uriPart = m[3];
+  S.proxyHost = hostport;
+  const cur = S.uri + (S.args ? '?' + S.args : '');
+  let out;
+  if (grpc){ out = cur; }
+  else if (hasVars){
+    out = uriPart !== undefined ? uriPart : cur;
+    lines.push('proxy_pass contains variables: ' + (uriPart !== undefined ? 'the expanded URI part is sent as-is.' : 'no URI part, so the current request URI is sent.'));
+  } else if (uriPart === undefined){
+    out = (S.uriChanged || S.internal) ? cur : r.requestUri;
+    lines.push('proxy_pass has no URI part: the request URI is passed ' + ((S.uriChanged || S.internal) ? 'in its current (rewritten) form.' : 'unchanged, exactly as the client sent it.'));
+  } else if (S.brokeRewrite){
+    out = cur;
+    lines.push('The URI was changed by "rewrite … break" in this location, so the URI part of proxy_pass is ignored and the rewritten URI is sent.');
+  } else if (loc && (loc.mod === '' || loc.mod === '=' || loc.mod === '^~') && ctx === loc){
+    out = uriPart + S.uri.slice(loc.pat.length) + (S.args ? '?' + S.args : '');
+    lines.push('proxy_pass has a URI part ("' + uriPart + '"): the part of the URI matching the location prefix "' + loc.pat + '" is replaced by it.');
+  } else {
+    out = uriPart + (S.args ? '?' + S.args : '');
+    lines.push({note: 'proxy_pass with a URI part is not allowed in a regex location, named location, or inside if/limit_except — nginx would refuse to load this config. Shown as a literal replacement.'});
+  }
+  if (out === '' || out[0] === '?') out = '/' + out;
+  lines.push('Upstream request line: ' + r.method + ' ' + out);
+
+  // headers
+  const headers = Object.assign({}, r.headers);
+  delete headers.connection;
+  let hostHdr = hostport;
+  const psh = inherited(ctx, 'proxy_set_header'), set = [];
+  for (const h of psh){
+    const name = (h.a[0] || '').toLowerCase(), val = expand(S, h.a[1] || '');
+    if (name === 'host') hostHdr = val;
+    if (val === '') delete headers[name]; else headers[name] = val;
+    set.push([h.a[0], val === '' ? '(removed)' : val]);
+  }
+  if (!psh.some(h => (h.a[0] || '').toLowerCase() === 'host')) set.unshift(['Host', hostHdr + '  (default: $proxy_host)']);
+  headers.host = hostHdr;
+  lines.push({kv: set, title: 'Headers set for the upstream request'});
+
+  // resolve upstream group
+  let addrs = [hostport];
+  const up = S.hop.upstreams[hostport];
+  if (up){
+    const srv = kids(up, 'server');
+    const live = srv.filter(s => !s.a.includes('down') && !s.a.includes('backup'));
+    addrs = (live.length ? live : srv).map(s => (s.a[0] || '').toLowerCase());
+    const bal = up.b.filter(x => ['least_conn', 'ip_hash', 'hash', 'random', 'least_time'].includes(x.n)).map(dirText).join(' ') || 'round-robin';
+    lines.push('"' + hostport + '" is an upstream group (' + bal + ') with servers: ' + srv.map(s => s.a.join(' ')).join(', ') + '.');
+  }
+  // find a hop for any address
+  const defPort = (scheme === 'https' || scheme === 'grpcs') ? 443 : 80;
+  let nextHop = null, usedAddr = addrs[0];
+  for (const a of addrs){
+    const bare = a.replace(/:\d+$/, '');
+    nextHop = DATA.hops.find(h => h.addrs.includes(a) || h.addrs.includes(bare));
+    if (nextHop){ usedAddr = a; break; }
+  }
+  const pm = /:(\d+)$/.exec(usedAddr), port = pm ? +pm[1] : defPort;
+  if (!nextHop){
+    lines.push('No configuration was supplied for ' + addrs.join(', ') + ', so the trace ends here. (Pass that server\'s config and an -addr mapping to nginxviz to continue the trace.)');
+    step(S, 'final', 'Proxied to external backend ' + usedAddr, lines, d, {final: 'ok', out: grpc ? {t: 'handler'} : {t: 'external', addr: usedAddr, method: r.method, uri: out, host: hostHdr}});
+    return null;
+  }
+  lines.push('Address ' + usedAddr + ' is served by "' + nextHop.name + '" — the trace continues there.');
+  step(S, 'proxy', d.n + ' → ' + nextHop.name + ' (' + usedAddr + ')', lines, d, {toHop: nextHop.index});
+  const qi = out.indexOf('?');
+  return {next: {hop: nextHop, req: {
+    scheme: (scheme === 'https' || scheme === 'grpcs') ? 'https' : 'http', port, method: r.method,
+    host: hostHdr.replace(/:\d+$/, '').toLowerCase(), headers, remoteAddr: HOP_IP || S.hop.name,
+    path: qi >= 0 ? out.slice(0, qi) : out, args: qi >= 0 ? out.slice(qi + 1) : '', requestUri: out}}};
+}
+
+function normPath(p){
+  let s; try { s = decodeURIComponent(p); } catch (e){ s = p; }
+  s = s.replace(/\/{2,}/g, '/');
+  const out = [];
+  for (const seg of s.split('/')){ if (seg === '..') { if (out.length > 1) out.pop(); } else if (seg !== '.') out.push(seg); }
+  return out.join('/') || '/';
+}
+
+let HOP_IP = null; // when set, later hops see this as the client address (verify runs)
+function domOpts(){ return {url: $('url').value, method: $('method').value, ip: $('ip').value, hdrs: $('hdrs').value, files: $('files').value, hopIp: null}; }
+function trace(o){
+  STEPS = []; HOP_IP = o.hopIp;
+  FILES = o.files.split('\n').map(s => s.trim()).filter(Boolean);
+  let raw = o.url.trim();
+  if (!raw) return 'Enter a URL.';
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(raw)) raw = 'http://' + raw;
+  let u; try { u = new URL(raw); } catch (e){ return 'That does not look like a valid URL.'; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return 'Only http:// and https:// URLs can be traced.';
+  // Keep the path exactly as typed: nginx forwards the original request URI, and the
+  // browser's URL parser would silently collapse "//" and "..".
+  let rawPQ = (/^[a-z][a-z0-9+.-]*:\/\/[^\/?#]*([^#]*)/i.exec(raw) || [])[1] || '/';
+  if (rawPQ[0] !== '/') rawPQ = '/' + rawPQ;
+  rawPQ = rawPQ.replace(/ /g, '%20');
+  const qpos = rawPQ.indexOf('?');
+  const rawPath = qpos >= 0 ? rawPQ.slice(0, qpos) : rawPQ, rawArgs = qpos >= 0 ? rawPQ.slice(qpos + 1) : '';
+  const headers = {};
+  for (const line of o.hdrs.split('\n')){ const i = line.indexOf(':'); if (i > 0) headers[line.slice(0, i).trim().toLowerCase()] = line.slice(i + 1).trim(); }
+  if (!headers.host) headers.host = u.host;
+  let req = {scheme: u.protocol.slice(0, -1), port: u.port ? +u.port : (u.protocol === 'https:' ? 443 : 80), method: o.method,
+    host: headers.host.replace(/:\d+$/, '').toLowerCase(), headers, remoteAddr: o.ip.trim() || '127.0.0.1',
+    path: rawPath, args: rawArgs, requestUri: rawPQ};
+  let hop = DATA.hops[0];
+  for (let n = 0; hop; n++){
+    const S = {hop, req, uri: normPath(req.path), args: req.args, vars: {}, caps: {}, server: null, loc: null, ifCtx: null, ctx: null,
+      uriChanged: false, internal: false, passChanged: false, brokeRewrite: false, proxyHost: '', unknown: new Set(), badRe: new Set(), mapBusy: new Set()};
+    if (n >= 12){ step(S, 'bad', 'Stopped: more than 12 proxy hops (loop between servers?)', [], null, {final: 'bad'}); break; }
+    const first = STEPS.length;
+    const res = processHop(S);
+    if (S.unknown.size || S.badRe.size){
+      const st = STEPS[STEPS.length - 1];
+      if (S.unknown.size) st.lines.push({note: 'Variables not modelled by this tool (treated as empty) in ' + hop.name + ': ' + [...S.unknown].map(v => '$' + v).join(', ')});
+      if (S.badRe.size) st.lines.push({note: 'Regexes that could not be translated (treated as non-matching): ' + [...S.badRe].join('  ')});
+    }
+    void first;
+    if (!res || !res.next) break;
+    hop = res.next.hop; req = res.next.req;
+  }
+  return null;
+}
+
+/* ---------- rendering ---------- */
+const NODE_EL = {};
+function renderDir(d){
+  const e = el('div', {class: 'dir', title: (d.f || '') + ':' + (d.l || '')}, dirText(d));
+  NODE_EL[d.id] = e; return e;
+}
+function renderBlock(d, label, open){
+  const sum = el('summary', null, label);
+  const inner = el('div', {class: 'in'});
+  for (const c of d.b){
+    if (c.n === 'location') inner.append(renderBlock(c, locName(c), false));
+    else if (c.n === 'if') inner.append(renderBlock(c, 'if ' + c.a.join(' '), true));
+    else if (c.k && c.b.length) inner.append(renderBlock(c, c.n + ' ' + c.a.join(' '), false));
+    else inner.append(renderDir(c));
+  }
+  const e = el('details', {class: 'blk'}, sum, inner);
+  if (open) e.open = true;
+  NODE_EL[d.id] = e; e._sum = sum; return e;
+}
+const HOP_EL = [], LINK_EL = [];
+function renderDiagram(){
+  const root = $('diagram');
+  root.append(el('div', {class: 'client'}, 'Client'));
+  DATA.hops.forEach((hop, i) => {
+    const link = el('div', {class: 'link'}, '→'); LINK_EL[i] = link; root.append(link);
+    const bd = el('div', {class: 'bd'});
+    if (!hop.servers.length) bd.append(el('div', {class: 'empty'}, 'No server blocks found in this config.'));
+    const ctxDirs = [];
+    for (const h of kids(hop.root, 'http')) for (const c of h.b) if (c.n !== 'server') ctxDirs.push(c);
+    if (ctxDirs.length){
+      const inner = el('div', {class: 'in'});
+      for (const c of ctxDirs) inner.append(c.k && c.b.length ? renderBlock(c, c.n + ' ' + c.a.join(' '), false) : renderDir(c));
+      bd.append(el('details', {class: 'blk'}, el('summary', null, 'http-level settings (' + ctxDirs.length + ')'), inner));
+    }
+    for (const s of hop.servers){
+      const label = 'server  ' + (s.names.join(' ') || '(no server_name)') + '  :' + [...new Set(s.listens.map(l => l.port))].join(',:');
+      bd.append(renderBlock(s, label, true));
+    }
+    const h = el('div', {class: 'hop'}, el('div', {class: 'hd'}, el('span', null, hop.name), el('small', {title: hop.file}, hop.file)), bd);
+    HOP_EL[i] = h; root.append(h);
+  });
+  if (DATA.warnings && DATA.warnings.length){
+    const w = el('div', {id: 'warnings', class: 'note'}, 'Parse warnings: ', ...DATA.warnings.map(x => el('div', null, x)));
+    document.querySelector('header').append(w);
+  }
+}
+
+let CUR = -1, timer = null;
+function renderSteps(){
+  const ol = $('steps'); ol.textContent = '';
+  let lastHop = -1;
+  STEPS.forEach((s, i) => {
+    if (s.hop !== lastHop){ ol.append(el('li', {class: 'hophead'}, DATA.hops[s.hop].name)); lastHop = s.hop; }
+    const kind = s.kind === 'final' ? (s.final === 'bad' ? 'bad' : 'final') : s.kind;
+    const li = el('li', {onclick: () => show(i)}, el('span', {class: 'num'}, String(i + 1)), el('span', {class: 'k k-' + kind}), el('span', null, s.title));
+    s.li = li; ol.append(li);
+  });
+}
+function kvTable(rows, prev){
+  const t = el('table', {class: 'kv'});
+  for (const [k, v] of rows){
+    const tr = el('tr', null, el('td', null, k), el('td', null, v === '' ? '""' : String(v)));
+    if (prev && prev[k] !== v) tr.className = 'chg';
+    t.append(tr);
+  }
+  return t;
+}
+function stateRows(sn){
+  const rows = [['$uri', sn.uri], ['$args', sn.args], ['$host', sn.host], ['method', sn.method]];
+  for (const k in sn.vars) rows.push(['$' + k, sn.vars[k]]);
+  for (const k in sn.caps) if (k !== '0') rows.push(['$' + k + ' (capture)', sn.caps[k]]);
+  return rows;
+}
+function show(i){
+  if (!STEPS.length) return;
+  CUR = Math.max(0, Math.min(STEPS.length - 1, i));
+  const s = STEPS[CUR];
+  // detail
+  const d = $('detail'); d.textContent = '';
+  d.append(el('div', {class: 'sub'}, 'Step ' + (CUR + 1) + ' of ' + STEPS.length + ' · ' + DATA.hops[s.hop].name));
+  d.append(el('h2', null, s.title));
+  if (s.d && s.d.n !== '(main)' && !s.d.synthetic)
+    d.append(el('div', {class: 'src'}, el('span', {class: 'where'}, (s.d.f || '?') + ':' + (s.d.l || '?')), dirText(s.d)));
+  for (const ln of s.lines){
+    if (ln == null) continue;
+    if (typeof ln === 'string') d.append(el('p', null, ln));
+    else if (ln.note) d.append(el('div', {class: 'note'}, ln.note));
+    else if (ln.kv){ d.append(el('h3', null, ln.title || '')); d.append(kvTable(ln.kv)); }
+  }
+  d.append(el('h3', null, 'Request state after this step'));
+  const prevRows = CUR > 0 && STEPS[CUR - 1].hop === s.hop ? Object.fromEntries(stateRows(STEPS[CUR - 1].snap)) : null;
+  d.append(kvTable(stateRows(s.snap), prevRows));
+  d.scrollTop = 0;
+  // step list
+  STEPS.forEach((x, j) => { x.li.className = j === CUR ? 'cur' : j > CUR ? 'future' : ''; });
+  s.li.scrollIntoView({block: 'nearest'});
+  // diagram
+  for (const id in NODE_EL){ const e = NODE_EL[id]; e.classList.remove('visited', 'active'); }
+  document.querySelectorAll('.badge').forEach(b => b.remove());
+  HOP_EL.forEach(h => h.classList.remove('onpath', 'active')); LINK_EL.forEach(l => l.classList.remove('onpath'));
+  const marks = {};
+  for (let j = 0; j <= CUR; j++){
+    const x = STEPS[j];
+    HOP_EL[x.hop].classList.add('onpath'); LINK_EL[x.hop].classList.add('onpath');
+    x.nodes.forEach(id => { const e = NODE_EL[id]; if (e){ e.classList.add('visited'); if (e.tagName === 'DETAILS') e.open = true; } });
+    const lastId = x.nodes[x.nodes.length - 1];
+    if (x.d && lastId) (marks[lastId] = marks[lastId] || []).push(j + 1);
+  }
+  for (const id in marks){
+    const e = NODE_EL[id]; if (!e) continue;
+    const ms = marks[id], txt = ms.length > 3 ? ms.slice(0, 2).join(',') + '…' + ms[ms.length - 1] : ms.join(',');
+    (e._sum || e).append(el('span', {class: 'badge'}, txt));
+  }
+  HOP_EL[s.hop].classList.add('active');
+  let focus = null;
+  s.nodes.forEach(id => { const e = NODE_EL[id]; if (e){ e.classList.add('active'); focus = e; } });
+  (focus ? (focus._sum || focus) : HOP_EL[s.hop]).scrollIntoView({block: 'nearest', inline: 'nearest'});
+  renderCrumbs();
+  $('pos').textContent = (CUR + 1) + ' / ' + STEPS.length;
+  $('first').disabled = $('prev').disabled = CUR === 0;
+  $('next').disabled = $('last').disabled = CUR === STEPS.length - 1;
+}
+function renderCrumbs(){
+  const c = $('crumbs'); c.textContent = '';
+  let lastHop = -1, n = 0;
+  const add = (cls, text, j) => {
+    if (n++) c.append(el('span', {class: 'arrow'}, '›'));
+    c.append(el('span', {class: 'crumb ' + cls + (j === CUR ? ' cur' : ''), title: text, onclick: () => show(j)}, text));
+  };
+  for (let j = 0; j <= CUR; j++){
+    const s = STEPS[j];
+    if (s.hop !== lastHop){ add('hopc', DATA.hops[s.hop].name, j); lastHop = s.hop; }
+    if (s.kind === 'match' || s.kind === 'proxy' || s.kind === 'rewrite' && /→/.test(s.title)) add('', s.title, j);
+    else if (s.kind === 'final') add(s.final === 'bad' ? 'final-bad' : 'final-ok', s.title, j);
+    else if (s.kind === 'bad') add('final-bad', s.title, j);
+  }
+}
+function stopPlay(){ if (timer){ clearInterval(timer); timer = null; $('play').textContent = 'Play'; } }
+function run(){
+  stopPlay();
+  const err = trace(domOpts());
+  if (err){ $('crumbs').textContent = ''; $('crumbs').append(el('span', {class: 'note'}, err)); return; }
+  renderSteps(); show(0);
+}
+
+/* ---------- verification against real nginx ---------- */
+function caseOpts(c){ return {url: c.url, method: c.method, ip: '127.0.0.1', hdrs: c.headers.join('\n'), files: '', hopIp: '127.0.0.1'}; }
+function compareCase(c){
+  const err = trace(caseOpts(c));
+  if (err) return {ok: false, diffs: ['simulator: ' + err], sim: '', obs: ''};
+  const diffs = [], notes = [];
+  const last = STEPS[STEPS.length - 1], out = last.out || {t: 'unknown'};
+  const simLocs = DATA.hops.map(() => []);
+  for (const s of STEPS) if (s.locEvt !== undefined) simLocs[s.hop].push(s.locEvt);
+  const fmt = a => a.length ? a.map(x => x === '' ? '(none)' : x).join(' → ') : '(not reached)';
+  if (DATA.verify.debug && c.locs && c.locs.length){
+    DATA.hops.forEach((h, i) => {
+      const o = c.locs[i] || [];
+      const sl = simLocs[i];
+      // When the outcome depends on the disk or an unstubbed backend, nginx may go on
+      // (e.g. to an error_page) after the point where the simulation has to stop.
+      const openEnded = (out.t === 'file' || out.t === 'handler') && i === last.hop && o.length > sl.length && JSON.stringify(o.slice(0, sl.length)) === JSON.stringify(sl);
+      if (openEnded) notes.push('in ' + h.name + ' nginx continued to ' + fmt(o.slice(sl.length)) + ' after the result of the file/backend was known');
+      else if (JSON.stringify(o) !== JSON.stringify(sl))
+        diffs.push('locations in ' + h.name + ': nginx chose ' + fmt(o) + ', simulation chose ' + fmt(simLocs[i]));
+    });
+  }
+  let simTxt = last.title, obsTxt = c.error ? c.error : 'status ' + c.status + (c.location ? ' → ' + c.location : '');
+  if (c.stub) obsTxt += ' · backend ' + c.stub.addr + ' got ' + c.stub.method + ' ' + c.stub.uri + ' (Host: ' + c.stub.host + ')';
+  if (out.t === 'status'){
+    if (out.code === 444){ if (!c.error) diffs.push('simulation expects the connection to be closed (444); nginx answered ' + c.status); }
+    else if (c.error) diffs.push('nginx gave no response (' + c.error + '); simulation expects ' + out.code);
+    else {
+      if (c.status !== out.code) diffs.push('status: nginx ' + c.status + ', simulation ' + out.code + (c.status === 401 ? ' (the simulation assumes authentication succeeds)' : ''));
+      if (out.location != null && c.location !== out.location && !(out.location[0] === '/' && (c.location || '').endsWith(out.location)))
+        diffs.push('redirect target: nginx "' + (c.location || '') + '", simulation "' + out.location + '"');
+    }
+  } else if (out.t === 'external'){
+    if (!c.stub) diffs.push('simulation expects a request to backend ' + out.addr + ', but none arrived (nginx: ' + obsTxt + ')');
+    else {
+      if (c.stub.addr !== out.addr) diffs.push('backend: nginx used ' + c.stub.addr + ', simulation ' + out.addr);
+      if (c.stub.method !== out.method || c.stub.uri !== out.uri) diffs.push('backend request: nginx sent ' + c.stub.method + ' ' + c.stub.uri + ', simulation ' + out.method + ' ' + out.uri);
+      if (c.stub.host.toLowerCase() !== out.host.toLowerCase()) diffs.push('backend Host header: nginx "' + c.stub.host + '", simulation "' + out.host + '"');
+    }
+  } else if (out.t === 'file'){
+    notes.push('status depends on files on the machine that ran verify');
+    if (c.error || ![200, 301, 304, 403, 404].includes(c.status)) diffs.push('static file request: nginx answered ' + obsTxt);
+  } else if (out.t === 'handler'){
+    notes.push('backend type is not stubbed; only the location choice was compared');
+  } else diffs.push('the simulation did not reach an outcome');
+  if (!DATA.verify.debug) notes.push('locations not compared (nginx built without debug logging)');
+  return {ok: !diffs.length, diffs, notes, sim: simTxt, obs: obsTxt};
+}
+function renderVerify(){
+  const V = DATA.verify, rows = [];
+  let okN = 0;
+  V.cases.forEach(c => {
+    const r = compareCase(c); if (r.ok) okN++;
+    const info = el('td', null, el('div', null, el('b', null, 'nginx: '), r.obs), el('div', null, el('b', null, 'simulation: '), r.sim),
+      ...r.diffs.map(d => el('div', {class: 'vdiff'}, '≠ ' + d)), ...(r.notes || []).map(n => el('div', {class: 'vnote'}, n)));
+    rows.push(el('tr', {class: r.ok ? 'vok' : 'vbad', title: 'Click to load this request into the tracer', onclick: () => {
+      $('url').value = c.url; $('method').value = c.method; $('ip').value = '127.0.0.1'; $('hdrs').value = c.headers.join('\n'); $('files').value = '';
+      stopPlay(); trace(caseOpts(c)); renderSteps(); show(0);
+    }}, el('td', {class: 'vmark'}, r.ok ? '✓ match' : '✗ differs'), el('td', {class: 'vurl'}, c.method + ' ' + c.url, ...c.headers.map(h => el('div', {class: 'vnote'}, h))), info));
+  });
+  STEPS = [];
+  const bad = V.cases.length - okN;
+  const box = el('details', {class: 'adv', id: 'verify'},
+    el('summary', null, 'Verification against real nginx (' + V.nginx + '): ', el('b', {class: bad ? 'vbadtxt' : 'voktxt'}, okN + ' of ' + V.cases.length + ' requests match' + (bad ? ', ' + bad + ' differ' : ''))),
+    el('div', {class: 'vwrap'},
+      el('p', {class: 'vnote'}, 'Each request was sent from 127.0.0.1 through scratch copies of the configs running under real nginx, with backends replaced by local stubs. "nginx" is what was observed; "simulation" is this page\'s own trace of the same request. Click a row to step through it.'),
+      ...V.notes.map(n => el('div', {class: 'note'}, n)),
+      el('table', {class: 'vt'}, ...rows)));
+  if (bad) box.open = true;
+  document.querySelector('header').append(box);
+}
+
+/* ---------- boot ---------- */
+if (!DATA){ document.body.textContent = 'This file is a template; generate it with nginxviz.'; }
+else {
+  DATA.hops.forEach(prepHop);
+  renderDiagram();
+  if (DATA.verify) renderVerify();
+  // suggest a starting URL from the first server block
+  const s0 = DATA.hops[0].servers[0];
+  if (s0){
+    const name = (s0.names.find(n => /^[a-z0-9.-]+$/i.test(n)) || 'localhost');
+    const l = s0.listens[0], ssl = l.ssl || l.port === 443;
+    const port = (ssl && l.port === 443) || (!ssl && l.port === 80) || l.port == null ? '' : ':' + l.port;
+    $('url').value = (ssl ? 'https' : 'http') + '://' + name + port + '/';
+  }
+  $('go').onclick = run;
+  $('url').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+  $('first').onclick = () => { stopPlay(); show(0); };
+  $('prev').onclick = () => { stopPlay(); show(CUR - 1); };
+  $('next').onclick = () => { stopPlay(); show(CUR + 1); };
+  $('last').onclick = () => { stopPlay(); show(STEPS.length - 1); };
+  $('play').onclick = () => {
+    if (timer) return stopPlay();
+    if (!STEPS.length) run();
+    if (!STEPS.length) return;
+    if (CUR >= STEPS.length - 1) show(0);
+    $('play').textContent = 'Pause';
+    timer = setInterval(() => { if (CUR >= STEPS.length - 1) stopPlay(); else show(CUR + 1); }, 1100);
+  };
+  document.addEventListener('keydown', e => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || !STEPS.length) return;
+    if (e.key === 'ArrowRight'){ stopPlay(); show(CUR + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft'){ stopPlay(); show(CUR - 1); e.preventDefault(); }
+    else if (e.key === 'Home'){ stopPlay(); show(0); }
+    else if (e.key === 'End'){ stopPlay(); show(STEPS.length - 1); }
+  });
+  ['first', 'prev', 'next', 'last'].forEach(id => { $(id).disabled = true; });
+}
+</script>
+</body>
+</html>

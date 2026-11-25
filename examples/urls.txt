@@ -1,0 +1,14 @@
+# [METHOD] URL [ | Header: value]...
+http://example.com/foo
+https://www.example.com/x?a=1
+https://example.com/old-blog/hello-world
+https://example.com/api/v1/posts/42?x=1
+https://example.com/api/v1/posts/42 | User-Agent: Googlebot
+https://example.com/api/other
+https://example.com/admin/users
+https://example.com/static/missing.css
+https://example.com/img/logo.PNG
+https://example.com/about
+https://example.com/healthz
+POST https://example.com/blog/My_Post
+https://example.com/
